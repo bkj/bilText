@@ -310,6 +310,12 @@ void FastText::step(std::vector<int32_t> line, std::vector<int32_t> labels) {
   } else if (args_->model == model_name::sg) {
     skipgram(*model_, lr, line);
   }
+
+  if (tokenCount % args_->lrUpdateRate == 0) {
+    if (args_->verbose > 1) {
+      printInfo(progress, model_->getLoss());
+    }
+  }
 }
 
 void FastText::train() {
@@ -335,7 +341,7 @@ void FastText::setup(std::shared_ptr<Args> args, std::shared_ptr<Dictionary> dic
   
   start = clock();
   tokenCount = 0;
-  std::ifstream ifs = std::ifstream(args_->input);
+  ifs = std::ifstream(args_->input);
   
   model_ = std::make_shared<Model>(input_, output_, args_, 0);
   if (args_->model == model_name::sup) {
