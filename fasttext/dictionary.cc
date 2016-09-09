@@ -34,15 +34,15 @@ Dictionary::Dictionary(std::shared_ptr<Args> args) {
   }
   
   if(!args->input.empty()) {
-    std::cout << "reading ifs" << std::endl;
+    std::cout << "Reading data" << std::endl;
     std::ifstream ifs(args->input);
     readFromFile(ifs);
     ifs.close();
   }
 }
 
-void Dictionary::toggleWV() {
-  args_->model = model_name::cbow;
+void Dictionary::toggleWV(std::shared_ptr<Args> args) {
+  args_ = args;
 }
 
 int32_t Dictionary::find(const std::string& w) {

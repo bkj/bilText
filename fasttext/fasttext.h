@@ -36,9 +36,9 @@ class FastText {
     std::shared_ptr<Model> model_;
     
     void getVector(Vector&, const std::string&);
-    void saveVectors();
+    void saveVectors(const std::string);
     void printVectors();
-    void saveModel();
+    void saveModel(const std::string);
     void loadModel(const std::string&);
     void printInfo(real, real);
 

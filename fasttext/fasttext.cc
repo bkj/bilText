@@ -113,8 +113,8 @@ void FastText::getVector(Vector& vec, const std::string& word) {
   }
 }
 
-void FastText::saveVectors() {
-  std::ofstream ofs(args_->output + ".vec");
+void FastText::saveVectors(std::string suffix) {
+  std::ofstream ofs(args_->output + suffix + ".vec");
   if (!ofs.is_open()) {
     std::cout << "Error opening file for saving vectors." << std::endl;
     exit(EXIT_FAILURE);
@@ -138,8 +138,8 @@ void FastText::printVectors() {
   }
 }
 
-void FastText::saveModel() {
-  std::ofstream ofs(args_->output + ".bin");
+void FastText::saveModel(std::string suffix) {
+  std::ofstream ofs(args_->output + suffix + ".bin");
   if (!ofs.is_open()) {
     std::cerr << "Model file cannot be opened for saving!" << std::endl;
     exit(EXIT_FAILURE);
@@ -366,31 +366,29 @@ void train(int argc, char** argv) {
   std::shared_ptr<Matrix> input = std::make_shared<Matrix>(dict->nwords()+args->bucket, args->dim);
   input->uniform(1.0 / args->dim);
 
-  std::shared_ptr<Args> args_wv(args);
-  std::shared_ptr<Dictionary> dict_wv(dict);
-  
+  std::shared_ptr<Args> args_wv = std::make_shared<Args>(*args);
+  std::shared_ptr<Dictionary> dict_wv = std::make_shared<Dictionary>(*dict);
+
   args_wv->toggleWV();
-  dict_wv->toggleWV();
-
-  std::cout << args->lr << std::endl;
-  std::cout << args_wv->lr << std::endl;
+  dict_wv->toggleWV(args);
   
-//  FastText ft_sup;
-//  ft_sup.dict_ = dict;
-//  ft_sup.input_ = input;
-//  ft_sup.train(args);
+  FastText ft_sup;
+  ft_sup.dict_ = dict;
+  ft_sup.input_ = input;
+  ft_sup.train(args);
   
-//  ft_sup.model_ = std::make_shared<Model>(ft_sup.input_, ft_sup.output_, ft_sup.args_, 0);
-//  ft_sup.saveModel();
-//  ft_sup.saveVectors();
+  ft_sup.model_ = std::make_shared<Model>(ft_sup.input_, ft_sup.output_, ft_sup.args_, 0);
+  ft_sup.saveModel("-sup");
+  ft_sup.saveVectors("-sup");
 
-//  FastText ft_wv;
-//  ft_wv.dict_ = dict_wv;
-//  ft_wv.input_ = input;
-//  ft_wv.train(args_wv);
-//  ft_wv.model_ = std::make_shared<Model>(ft_wv.input_, ft_wv.output_, ft_wv.args_, 0);
-//  ft_wv.saveModel();
-  //  ft_sup.saveVectors();
+  FastText ft_wv;
+  ft_wv.dict_ = dict_wv;
+  ft_wv.input_ = input;
+  ft_wv.train(args_wv);
+
+  ft_wv.model_ = std::make_shared<Model>(ft_wv.input_, ft_wv.output_, ft_wv.args_, 0);
+  ft_wv.saveModel("-wv");
+  ft_sup.saveVectors("-wv");
 }
 
 int main(int argc, char** argv) {

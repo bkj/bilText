@@ -16,7 +16,7 @@
 
 Args::Args() {
   lr = 0.05;
-  dim = 100;
+  dim = 1;
   ws = 5;
   epoch = 5;
   minCount = 5;
@@ -25,8 +25,8 @@ Args::Args() {
   loss = loss_name::ns;
   model = model_name::sg;
   bucket = 2000000;
-  minn = 3;
-  maxn = 6;
+  minn = 0;
+  maxn = 0;
   thread = 12;
   lrUpdateRate = 100;
   t = 1e-4;
