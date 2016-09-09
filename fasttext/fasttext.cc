@@ -301,7 +301,13 @@ void FastText::step(std::vector<int32_t> line, std::vector<int32_t> labels) {
   const int64_t ntokens = dict_->ntokens();
   real progress = real(tokenCount) / (args_->epoch * ntokens);
   real lr = args_->lr * (1.0 - progress);
+  
   tokenCount += dict_->getLine(ifs, line, labels, model_->rng);
+  
+//  for(auto l : line) {
+//    std::cout << l << " ";
+//  }
+//  std::cout << std::endl;
   
   if (args_->model == model_name::sup) {
     dict_->addNgrams(line, args_->wordNgrams);
@@ -367,11 +373,21 @@ void train(int argc, char** argv) {
   std::shared_ptr<Matrix> input = std::make_shared<Matrix>(dict->nwords()+args->bucket, args->dim);
   input->uniform(1.0 / args->dim);
 
+  // >>
+//  std::shared_ptr<Args> args_burnin = std::make_shared<Args>(*args);
+//  args_burnin->toggleWV();
+//  std::shared_ptr<Dictionary> dict_burnin = std::make_shared<Dictionary>(args_burnin);
+//  FastText ft_burnin;
+//  ft_burnin.setup(args_burnin, dict_burnin, input);
+//  std::cout << "burning in" << std::endl;
+//  ft_burnin.train();
+  // <<
+
   // WV args -- have to read dict twice ATM (gross)
   std::shared_ptr<Args> args_wv = std::make_shared<Args>(*args);
   args_wv->toggleWV();
   std::shared_ptr<Dictionary> dict_wv = std::make_shared<Dictionary>(args_wv);
-
+  
   FastText ft_sup, ft_wv;
   ft_sup.setup(args, dict, input);
   ft_wv.setup(args_wv, dict_wv, input);

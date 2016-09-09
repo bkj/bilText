@@ -24,6 +24,7 @@ class Args {
     std::string test;
     std::string output;
     double lr;
+    double lr_wv;
     int lrUpdateRate;
     int dim;
     int ws;

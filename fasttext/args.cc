@@ -15,7 +15,6 @@
 #include <iostream>
 
 Args::Args() {
-  lr = 0.05;
   ws = 5;
   epoch = 5;
   neg = 5;
@@ -29,18 +28,29 @@ Args::Args() {
   label = "__label__";
   verbose = 2;
 
+  lr = 0.01;
+  lr_wv = 0.05;
   dim = 1;
   minCount = 1;
   minn = 0;
   maxn = 0;
 }
 
+// --
+// fasttext semisupervised -input ./data/ft-semi.txt -output ./models/semi -dim 10
+// 0.1, 0.01 -> 0.848
+// 0.1, 0.011 -> 0.849
+// 0.1, 0.013 -> 0.850
+// 0.1, 0.015 -> 0.851
+// 0.1, 0.02 -> 0.852
+// 0.1, 0.05 -> 0.853
+// 0.1, 0.075 -> 0.853
+// 0.2, 0.075 -> 0.856
+
 void Args::toggleWV() {
   model = model_name::cbow;
   loss = loss_name::ns;
-//  lr = 0.05; // Original weight
-//  lr = 0.009; // Middle weight
-  lr = 0.00001; // No weight
+  lr = lr_wv;
 }
 
 void Args::parseArgs(int argc, char** argv) {
@@ -48,8 +58,7 @@ void Args::parseArgs(int argc, char** argv) {
   if (command == "semisupervised" ) {
     model = model_name::sup;
     loss = loss_name::softmax;
-    lr = 0.1; // Original weight
-//    lr = 0.01; // Low weight
+    lr = 0.1;
   } else if (command == "cbow") {
     model = model_name::cbow;
   }
@@ -73,6 +82,8 @@ void Args::parseArgs(int argc, char** argv) {
       output = std::string(argv[ai + 1]);
     } else if (strcmp(argv[ai], "-lr") == 0) {
       lr = atof(argv[ai + 1]);
+    } else if (strcmp(argv[ai], "-lr_wv") == 0) {
+      lr_wv = atof(argv[ai + 1]);
     } else if (strcmp(argv[ai], "-lrUpdateRate") == 0) {
       lrUpdateRate = atoi(argv[ai + 1]);
     } else if (strcmp(argv[ai], "-dim") == 0) {

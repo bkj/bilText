@@ -253,14 +253,12 @@ void Dictionary::addNgrams(std::vector<int32_t>& line, int32_t n) {
   }
 }
 
-int32_t Dictionary::getLine(std::istream& in,
-                            std::vector<int32_t>& words,
-                            std::vector<int32_t>& labels,
-                            std::minstd_rand& rng) {
+int32_t Dictionary::getLine(std::istream& in, std::vector<int32_t>& words, std::vector<int32_t>& labels, std::minstd_rand& rng) {
   std::uniform_real_distribution<> uniform(0, 1);
   std::string token;
   int32_t ntokens = 0;
   words.clear();
+  
   labels.clear();
   if (in.eof()) {
     in.clear();
@@ -272,8 +270,10 @@ int32_t Dictionary::getLine(std::istream& in,
     if (wid < 0) continue;
     entry_type type = getType(wid);
     ntokens++;
-    if (type == entry_type::word && !discard(wid, uniform(rng))) {
-      words.push_back(wid);
+    if (type == entry_type::word) {
+      if(!discard(wid, uniform(rng))) {
+        words.push_back(wid);
+      }
     }
     if (type == entry_type::label) {
       labels.push_back(wid - nwords_);
