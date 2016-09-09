@@ -1,4 +1,10 @@
 *DS_Store
 ft
-*o
 *xcodeproj
+.*.swp
+*.o
+*.bin
+*.vec
+data
+fasttext
+result
