@@ -27,7 +27,8 @@ class FastText {
   private:
     std::atomic<int64_t> tokenCount;
     clock_t start;
-
+    std::ifstream ifs;
+    
   public:
     std::shared_ptr<Args> args_;
     std::shared_ptr<Dictionary> dict_;
@@ -48,8 +49,10 @@ class FastText {
     void skipgram(Model&, real, const std::vector<int32_t>&);
     void test(const std::string&, int32_t);
     void predict(const std::string&, int32_t, bool);
-    void trainThread(int32_t);
-    void train(std::shared_ptr<Args>);
+    
+    void setup(std::shared_ptr<Args>, std::shared_ptr<Dictionary>, std::shared_ptr<Matrix>);
+    void train();
+    void step(std::vector<int32_t>, std::vector<int32_t>);
 };
 
 #endif

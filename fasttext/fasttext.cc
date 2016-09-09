@@ -296,66 +296,52 @@ void FastText::skipgram(Model& model, real lr,
   }
 }
 
-void FastText::trainThread(int32_t threadId) {
-  std::ifstream ifs(args_->input);
-  utils::seek(ifs, threadId * utils::size(ifs) / args_->thread);
-
-  Model model(input_, output_, args_, threadId);
-  if (args_->model == model_name::sup) {
-    model.setTargetCounts(dict_->getCounts(entry_type::label));
-  } else {
-    model.setTargetCounts(dict_->getCounts(entry_type::word));
-  }
-
+void FastText::step(std::vector<int32_t> line, std::vector<int32_t> labels) {
   const int64_t ntokens = dict_->ntokens();
-  int64_t localTokenCount = 0;
+  real progress = real(tokenCount) / (args_->epoch * ntokens);
+  real lr = args_->lr * (1.0 - progress);
+  tokenCount += dict_->getLine(ifs, line, labels, model_->rng);
+  
+  if (args_->model == model_name::sup) {
+    dict_->addNgrams(line, args_->wordNgrams);
+    supervised(*model_, lr, line, labels);
+  } else if (args_->model == model_name::cbow) {
+    cbow(*model_, lr, line);
+  } else if (args_->model == model_name::sg) {
+    skipgram(*model_, lr, line);
+  }
+}
+
+void FastText::train() {
+  const int64_t ntokens = dict_->ntokens();
   std::vector<int32_t> line, labels;
   while (tokenCount < args_->epoch * ntokens) {
-    real progress = real(tokenCount) / (args_->epoch * ntokens);
-    real lr = args_->lr * (1.0 - progress);
-    localTokenCount += dict_->getLine(ifs, line, labels, model.rng);
-    
-    if (args_->model == model_name::sup) {
-      dict_->addNgrams(line, args_->wordNgrams); // ... Adds word ngrams ... seems like a weird place to do this
-      supervised(model, lr, line, labels);
-    } else if (args_->model == model_name::cbow) {
-      cbow(model, lr, line);
-    } else if (args_->model == model_name::sg) {
-      skipgram(model, lr, line);
-    }
-    if (localTokenCount > args_->lrUpdateRate) {
-      tokenCount += localTokenCount;
-      localTokenCount = 0;
-      if (threadId == 0 && args_->verbose > 1) {
-        printInfo(progress, model.getLoss());
-      }
-    }
-  }
-  if (threadId == 0) {
-    printInfo(1.0, model.getLoss());
-    std::cout << std::endl;
+    step(line, labels);
   }
   ifs.close();
 }
 
-void FastText::train(std::shared_ptr<Args> args) {
+void FastText::setup(std::shared_ptr<Args> args, std::shared_ptr<Dictionary> dict, std::shared_ptr<Matrix> input) {
   args_ = args;
-  
+  dict_ = dict;
+  input_ = input;
+
   if (args_->model == model_name::sup) {
       output_ = std::make_shared<Matrix>(dict_->nlabels(), args_->dim);
   } else {
       output_ = std::make_shared<Matrix>(dict_->nwords(), args_->dim);
   }
   output_->zero();
-
+  
   start = clock();
   tokenCount = 0;
-  std::vector<std::thread> threads;
-  for (int32_t i = 0; i < args_->thread; i++) {
-    threads.push_back(std::thread([=]() { trainThread(i); }));
-  }
-  for (auto it = threads.begin(); it != threads.end(); ++it) {
-    it->join();
+  std::ifstream ifs = std::ifstream(args_->input);
+  
+  model_ = std::make_shared<Model>(input_, output_, args_, 0);
+  if (args_->model == model_name::sup) {
+    model_->setTargetCounts(dict_->getCounts(entry_type::label));
+  } else {
+    model_->setTargetCounts(dict_->getCounts(entry_type::word));
   }
 }
 
@@ -373,19 +359,15 @@ void train(int argc, char** argv) {
   dict_wv->toggleWV(args);
   
   FastText ft_sup;
-  ft_sup.dict_ = dict;
-  ft_sup.input_ = input;
-  ft_sup.train(args);
-  
+  ft_sup.setup(args, dict, input);
+  ft_sup.train();
   ft_sup.model_ = std::make_shared<Model>(ft_sup.input_, ft_sup.output_, ft_sup.args_, 0);
   ft_sup.saveModel("-sup");
   ft_sup.saveVectors("-sup");
 
   FastText ft_wv;
-  ft_wv.dict_ = dict_wv;
-  ft_wv.input_ = input;
-  ft_wv.train(args_wv);
-
+  ft_wv.setup(args_wv, dict_wv, input);
+  ft_wv.train();
   ft_wv.model_ = std::make_shared<Model>(ft_wv.input_, ft_wv.output_, ft_wv.args_, 0);
   ft_wv.saveModel("-wv");
   ft_sup.saveVectors("-wv");
