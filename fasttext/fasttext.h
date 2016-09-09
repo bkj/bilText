@@ -25,15 +25,16 @@
 
 class FastText {
   private:
+    std::atomic<int64_t> tokenCount;
+    clock_t start;
+
+  public:
     std::shared_ptr<Args> args_;
     std::shared_ptr<Dictionary> dict_;
     std::shared_ptr<Matrix> input_;
     std::shared_ptr<Matrix> output_;
     std::shared_ptr<Model> model_;
-    std::atomic<int64_t> tokenCount;
-    clock_t start;
-
-  public:
+    
     void getVector(Vector&, const std::string&);
     void saveVectors();
     void printVectors();

@@ -39,7 +39,7 @@ class Dictionary {
     void initTableDiscard();
     void initNgrams();
     void threshold(int64_t);
-
+    
     std::shared_ptr<Args> args_;
     std::vector<int32_t> word2int_;
     std::vector<entry> words_;
@@ -76,6 +76,7 @@ class Dictionary {
     void addNgrams(std::vector<int32_t>&, int32_t);
     int32_t getLine(std::istream&, std::vector<int32_t>&,
                     std::vector<int32_t>&, std::minstd_rand&);
+    void toggleWV();
 };
 
 #endif

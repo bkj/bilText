@@ -12,6 +12,7 @@
 #include <assert.h>
 
 #include <iostream>
+#include <fstream>
 #include <algorithm>
 #include <iterator>
 #include <unordered_map>
@@ -31,6 +32,17 @@ Dictionary::Dictionary(std::shared_ptr<Args> args) {
   for (int32_t i = 0; i < MAX_VOCAB_SIZE; i++) {
     word2int_[i] = -1;
   }
+  
+  if(!args->input.empty()) {
+    std::cout << "reading ifs" << std::endl;
+    std::ifstream ifs(args->input);
+    readFromFile(ifs);
+    ifs.close();
+  }
+}
+
+void Dictionary::toggleWV() {
+  args_->model = model_name::cbow;
 }
 
 int32_t Dictionary::find(const std::string& w) {
@@ -88,7 +100,7 @@ const std::vector<int32_t> Dictionary::getNgrams(const std::string& word) {
 bool Dictionary::discard(int32_t id, real rand) {
   assert(id >= 0);
   assert(id < nwords_);
-  if (args_->model == model_name::sup || args_->model == model_name::semisup) return false;
+  if (args_->model == model_name::sup) return false;
   return rand > pdiscard_[id];
 }
 
@@ -266,7 +278,7 @@ int32_t Dictionary::getLine(std::istream& in,
     if (type == entry_type::label) {
       labels.push_back(wid - nwords_);
     }
-    if (words.size() > MAX_LINE_SIZE && (args_->model != model_name::sup) && (args_->model != model_name::semisup)) {
+    if (words.size() > MAX_LINE_SIZE && args_->model != model_name::sup) {
       break;
     }
   }

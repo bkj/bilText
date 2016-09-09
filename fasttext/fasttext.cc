@@ -19,6 +19,89 @@
 #include <vector>
 #include <algorithm>
 
+void printUsage() {
+  std::cout
+  << "usage: fasttext <command> <args>\n\n"
+  << "The commands supported by fasttext are:\n\n"
+  << "  semisupervised   train a semisupervised classifier (experimental)\n"
+  << "  test             evaluate a supervised classifier\n"
+  << "  predict          predict most likely labels\n"
+  << "  predict-prob     predict most likely labels with probabilities\n"
+  << "  skipgram         train a skipgram model\n"
+  << "  cbow             train a cbow model\n"
+  << "  print-vectors    print vectors given a trained model\n"
+  << std::endl;
+}
+
+void printTestUsage() {
+  std::cout
+  << "usage: fasttext test <model> <test-data> [<k>]\n\n"
+  << "  <model>      model filename\n"
+  << "  <test-data>  test data filename\n"
+  << "  <k>          (optional; 1 by default) predict top k labels\n"
+  << std::endl;
+}
+
+void printPredictUsage() {
+  std::cout
+  << "usage: fasttext predict[-prob] <model> <test-data> [<k>]\n\n"
+  << "  <model>      model filename\n"
+  << "  <test-data>  test data filename\n"
+  << "  <k>          (optional; 1 by default) predict top k labels\n"
+  << std::endl;
+}
+
+void printPrintVectorsUsage() {
+  std::cout
+  << "usage: fasttext print-vectors <model>\n\n"
+  << "  <model>      model filename\n"
+  << std::endl;
+}
+
+void test(int argc, char** argv) {
+  int32_t k;
+  if (argc == 4) {
+    k = 1;
+  } else if (argc == 5) {
+    k = atoi(argv[4]);
+  } else {
+    printTestUsage();
+    exit(EXIT_FAILURE);
+  }
+  FastText fasttext;
+  fasttext.loadModel(std::string(argv[2]));
+  fasttext.test(std::string(argv[3]), k);
+  exit(0);
+}
+
+void predict(int argc, char** argv) {
+  int32_t k;
+  if (argc == 4) {
+    k = 1;
+  } else if (argc == 5) {
+    k = atoi(argv[4]);
+  } else {
+    printPredictUsage();
+    exit(EXIT_FAILURE);
+  }
+  bool print_prob = std::string(argv[1]) == "predict-prob";
+  FastText fasttext;
+  fasttext.loadModel(std::string(argv[2]));
+  fasttext.predict(std::string(argv[3]), k, print_prob);
+  exit(0);
+}
+
+void printVectors(int argc, char** argv) {
+  if (argc != 3) {
+    printPrintVectorsUsage();
+    exit(EXIT_FAILURE);
+  }
+  FastText fasttext;
+  fasttext.loadModel(std::string(argv[2]));
+  fasttext.printVectors();
+  exit(0);
+}
+
 void FastText::getVector(Vector& vec, const std::string& word) {
   const std::vector<int32_t>& ngrams = dict_->getNgrams(word);
   vec.zero();
@@ -84,7 +167,7 @@ void FastText::loadModel(const std::string& filename) {
   output_->load(ifs);
   model_ = std::make_shared<Model>(input_, output_, args_, 0);
   
-  if (args_->model == model_name::sup || args_->model == model_name::semisup) {
+  if (args_->model == model_name::sup) {
     model_->setTargetCounts(dict_->getCounts(entry_type::label));
   } else {
     model_->setTargetCounts(dict_->getCounts(entry_type::word));
@@ -106,46 +189,6 @@ void FastText::printInfo(real progress, real loss) {
   std::cout << "  loss: " << std::setprecision(6) << loss;
   std::cout << "  eta: " << etah << "h" << etam << "m ";
   std::cout << std::flush;
-}
-
-void FastText::supervised(Model& model, real lr,
-                          const std::vector<int32_t>& line,
-                          const std::vector<int32_t>& labels) {
-  if (labels.size() == 0 || line.size() == 0) return;  
-  std::uniform_int_distribution<> uniform(0, labels.size() - 1);
-  int32_t i = uniform(model.rng);
-  model.update(line, labels[i], lr);
-}
-
-void FastText::cbow(Model& model, real lr,
-                    const std::vector<int32_t>& line) {
-  std::vector<int32_t> bow;
-  std::uniform_int_distribution<> uniform(1, args_->ws);
-  for (int32_t w = 0; w < line.size(); w++) {
-    int32_t boundary = uniform(model.rng);
-    bow.clear();
-    for (int32_t c = -boundary; c <= boundary; c++) {
-      if (c != 0 && w + c >= 0 && w + c < line.size()) {
-        const std::vector<int32_t>& ngrams = dict_->getNgrams(line[w + c]);
-        bow.insert(bow.end(), ngrams.cbegin(), ngrams.cend());
-      }
-    }
-    model.update(bow, line[w], lr);
-  }
-}
-
-void FastText::skipgram(Model& model, real lr,
-                        const std::vector<int32_t>& line) {
-  std::uniform_int_distribution<> uniform(1, args_->ws);
-  for (int32_t w = 0; w < line.size(); w++) {
-    int32_t boundary = uniform(model.rng);
-    const std::vector<int32_t>& ngrams = dict_->getNgrams(line[w]);
-    for (int32_t c = -boundary; c <= boundary; c++) {
-      if (c != 0 && w + c >= 0 && w + c < line.size()) {
-        model.update(ngrams, line[w + c], lr);
-      }
-    }
-  }
 }
 
 void FastText::test(const std::string& filename, int32_t k) {
@@ -209,12 +252,56 @@ void FastText::predict(const std::string& filename, int32_t k, bool print_prob) 
   ifs.close();
 }
 
+// --------
+// vv Train
+
+
+void FastText::supervised(Model& model, real lr,
+                          const std::vector<int32_t>& line,
+                          const std::vector<int32_t>& labels) {
+  if (labels.size() == 0 || line.size() == 0) return;
+  std::uniform_int_distribution<> uniform(0, labels.size() - 1);
+  int32_t i = uniform(model.rng);
+  model.update(line, labels[i], lr);
+}
+
+void FastText::cbow(Model& model, real lr,
+                    const std::vector<int32_t>& line) {
+  std::vector<int32_t> bow;
+  std::uniform_int_distribution<> uniform(1, args_->ws);
+  for (int32_t w = 0; w < line.size(); w++) {
+    int32_t boundary = uniform(model.rng);
+    bow.clear();
+    for (int32_t c = -boundary; c <= boundary; c++) {
+      if (c != 0 && w + c >= 0 && w + c < line.size()) {
+        const std::vector<int32_t>& ngrams = dict_->getNgrams(line[w + c]);
+        bow.insert(bow.end(), ngrams.cbegin(), ngrams.cend());
+      }
+    }
+    model.update(bow, line[w], lr);
+  }
+}
+
+void FastText::skipgram(Model& model, real lr,
+                        const std::vector<int32_t>& line) {
+  std::uniform_int_distribution<> uniform(1, args_->ws);
+  for (int32_t w = 0; w < line.size(); w++) {
+    int32_t boundary = uniform(model.rng);
+    const std::vector<int32_t>& ngrams = dict_->getNgrams(line[w]);
+    for (int32_t c = -boundary; c <= boundary; c++) {
+      if (c != 0 && w + c >= 0 && w + c < line.size()) {
+        model.update(ngrams, line[w + c], lr);
+      }
+    }
+  }
+}
+
 void FastText::trainThread(int32_t threadId) {
   std::ifstream ifs(args_->input);
   utils::seek(ifs, threadId * utils::size(ifs) / args_->thread);
 
   Model model(input_, output_, args_, threadId);
-  if (args_->model == model_name::sup || args_->model == model_name::semisup) {
+  if (args_->model == model_name::sup) {
     model.setTargetCounts(dict_->getCounts(entry_type::label));
   } else {
     model.setTargetCounts(dict_->getCounts(entry_type::word));
@@ -228,7 +315,7 @@ void FastText::trainThread(int32_t threadId) {
     real lr = args_->lr * (1.0 - progress);
     localTokenCount += dict_->getLine(ifs, line, labels, model.rng);
     
-    if (args_->model == model_name::sup || args_->model == model_name::semisup) {
+    if (args_->model == model_name::sup) {
       dict_->addNgrams(line, args_->wordNgrams); // ... Adds word ngrams ... seems like a weird place to do this
       supervised(model, lr, line, labels);
     } else if (args_->model == model_name::cbow) {
@@ -253,25 +340,12 @@ void FastText::trainThread(int32_t threadId) {
 
 void FastText::train(std::shared_ptr<Args> args) {
   args_ = args;
-  dict_ = std::make_shared<Dictionary>(args_);
-  std::ifstream ifs(args_->input);
-  if (!ifs.is_open()) {
-    std::cerr << "Input file cannot be opened!" << std::endl;
-    exit(EXIT_FAILURE);
-  }
-  dict_->readFromFile(ifs);
-  ifs.close();
-    
-  input_ = std::make_shared<Matrix>(dict_->nwords()+args_->bucket, args_->dim);
+  
   if (args_->model == model_name::sup) {
       output_ = std::make_shared<Matrix>(dict_->nlabels(), args_->dim);
-//  } else if (args_->model == model_name::semisup) {
-//      output_lab = std::make_shared<Matrix>(dict_->nlabels(), args_->dim);
-//      output_emb = std::make_shared<Matrix>(dict_->nwords(), args_->dim);
   } else {
       output_ = std::make_shared<Matrix>(dict_->nwords(), args_->dim);
   }
-  input_->uniform(1.0 / args_->dim);
   output_->zero();
 
   start = clock();
@@ -283,102 +357,40 @@ void FastText::train(std::shared_ptr<Args> args) {
   for (auto it = threads.begin(); it != threads.end(); ++it) {
     it->join();
   }
-  model_ = std::make_shared<Model>(input_, output_, args_, 0);
-  saveModel();
-  if (args_->model != model_name::sup && args_->model != model_name::semisup) {
-    saveVectors();
-  }
-}
-
-void printUsage() {
-  std::cout
-    << "usage: fasttext <command> <args>\n\n"
-    << "The commands supported by fasttext are:\n\n"
-    << "  supervised       train a supervised classifier\n"
-    << "  semisupervised   train a semisupervised classifier (experimental)\n"
-    << "  test             evaluate a supervised classifier\n"
-    << "  predict          predict most likely labels\n"
-    << "  predict-prob     predict most likely labels with probabilities\n"
-    << "  skipgram         train a skipgram model\n"
-    << "  cbow             train a cbow model\n"
-    << "  print-vectors    print vectors given a trained model\n"
-    << std::endl;
-}
-
-void printTestUsage() {
-  std::cout
-    << "usage: fasttext test <model> <test-data> [<k>]\n\n"
-    << "  <model>      model filename\n"
-    << "  <test-data>  test data filename\n"
-    << "  <k>          (optional; 1 by default) predict top k labels\n"
-    << std::endl;
-}
-
-void printPredictUsage() {
-  std::cout
-    << "usage: fasttext predict[-prob] <model> <test-data> [<k>]\n\n"
-    << "  <model>      model filename\n"
-    << "  <test-data>  test data filename\n"
-    << "  <k>          (optional; 1 by default) predict top k labels\n"
-    << std::endl;
-}
-
-void printPrintVectorsUsage() {
-  std::cout
-    << "usage: fasttext print-vectors <model>\n\n"
-    << "  <model>      model filename\n"
-    << std::endl;
-}
-
-void test(int argc, char** argv) {
-  int32_t k;
-  if (argc == 4) {
-    k = 1;
-  } else if (argc == 5) {
-    k = atoi(argv[4]);
-  } else {
-    printTestUsage();
-    exit(EXIT_FAILURE);
-  }
-  FastText fasttext;
-  fasttext.loadModel(std::string(argv[2]));
-  fasttext.test(std::string(argv[3]), k);
-  exit(0);
-}
-
-void predict(int argc, char** argv) {
-  int32_t k;
-  if (argc == 4) {
-    k = 1;
-  } else if (argc == 5) {
-    k = atoi(argv[4]);
-  } else {
-    printPredictUsage();
-    exit(EXIT_FAILURE);
-  }
-  bool print_prob = std::string(argv[1]) == "predict-prob";
-  FastText fasttext;
-  fasttext.loadModel(std::string(argv[2]));
-  fasttext.predict(std::string(argv[3]), k, print_prob);
-  exit(0);
-}
-
-void printVectors(int argc, char** argv) {
-  if (argc != 3) {
-    printPrintVectorsUsage();
-    exit(EXIT_FAILURE);
-  }
-  FastText fasttext;
-  fasttext.loadModel(std::string(argv[2]));
-  fasttext.printVectors();
-  exit(0);
 }
 
 void train(int argc, char** argv) {
-  std::shared_ptr<Args> a = std::make_shared<Args>();
-  a->parseArgs(argc, argv);
-  FastText fasttext;
-  fasttext.train(a);
+  std::shared_ptr<Args> args = std::make_shared<Args>();
+  args->parseArgs(argc, argv);
+  std::shared_ptr<Dictionary> dict = std::make_shared<Dictionary>(args);
+  std::shared_ptr<Matrix> input = std::make_shared<Matrix>(dict->nwords()+args->bucket, args->dim);
+  input->uniform(1.0 / args->dim);
+
+  std::shared_ptr<Args> args_wv(args);
+  std::shared_ptr<Dictionary> dict_wv(dict);
+  
+  args_wv->toggleWV();
+  dict_wv->toggleWV();
+
+  std::cout << args->lr << std::endl;
+  std::cout << args_wv->lr << std::endl;
+  
+//  FastText ft_sup;
+//  ft_sup.dict_ = dict;
+//  ft_sup.input_ = input;
+//  ft_sup.train(args);
+  
+//  ft_sup.model_ = std::make_shared<Model>(ft_sup.input_, ft_sup.output_, ft_sup.args_, 0);
+//  ft_sup.saveModel();
+//  ft_sup.saveVectors();
+
+//  FastText ft_wv;
+//  ft_wv.dict_ = dict_wv;
+//  ft_wv.input_ = input;
+//  ft_wv.train(args_wv);
+//  ft_wv.model_ = std::make_shared<Model>(ft_wv.input_, ft_wv.output_, ft_wv.args_, 0);
+//  ft_wv.saveModel();
+  //  ft_sup.saveVectors();
 }
 
 int main(int argc, char** argv) {
@@ -388,7 +400,7 @@ int main(int argc, char** argv) {
     exit(EXIT_FAILURE);
   }
   std::string command(argv[1]);
-  if (command == "skipgram" || command == "cbow" || command == "supervised" || command == "semisupervised") {
+  if (command == "semisupervised") {
     train(argc, argv);
   } else if (command == "test") {
     test(argc, argv);

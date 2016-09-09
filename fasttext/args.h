@@ -14,7 +14,7 @@
 #include <ostream>
 #include <string>
 
-enum class model_name : int {cbow=1, sg, sup, semisup};
+enum class model_name : int {cbow=1, sg, sup};
 enum class loss_name : int {hs=1, ns, softmax};
 
 class Args {
@@ -45,6 +45,7 @@ class Args {
     void printHelp();
     void save(std::ostream&);
     void load(std::istream&);
+    void toggleWV();
 };
 
 #endif

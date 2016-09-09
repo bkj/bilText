@@ -34,22 +34,21 @@ Args::Args() {
   verbose = 2;
 }
 
+void Args::toggleWV() {
+  lr = 0.05;
+  loss = loss_name::ns;
+  model = model_name::cbow;
+}
+
 void Args::parseArgs(int argc, char** argv) {
   std::string command(argv[1]);
-  if (command == "supervised" ) {
+  if (command == "semisupervised" ) {
     model = model_name::sup;
     loss = loss_name::softmax;
     minCount = 1;
     minn = 0;
     maxn = 0;
     lr = 0.1;
-  } else if (command == "semisupervised") {
-    model = model_name::semisup;
-    loss = loss_name::softmax;
-    minCount = 1;
-    minn = 0;
-    maxn = 0;
-    lr = 0.1;    
   } else if (command == "cbow") {
     model = model_name::cbow;
   }
