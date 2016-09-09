@@ -326,7 +326,7 @@ void FastText::train() {
     step(line, labels);
   }
   std::cout << std::endl;
-  destroy();
+  close("");
 }
 
 void FastText::setup(std::shared_ptr<Args> args, std::shared_ptr<Dictionary> dict, std::shared_ptr<Matrix> input) {
@@ -353,8 +353,11 @@ void FastText::setup(std::shared_ptr<Args> args, std::shared_ptr<Dictionary> dic
   }
 }
 
-void FastText::destroy() {
+void FastText::close(std::string suffix) {
   ifs.close();
+  model_ = std::make_shared<Model>(input_, output_, args_, 0);
+  saveModel(suffix);
+  saveVectors(suffix);
 }
 
 void train(int argc, char** argv) {
@@ -364,7 +367,7 @@ void train(int argc, char** argv) {
   std::shared_ptr<Matrix> input = std::make_shared<Matrix>(dict->nwords()+args->bucket, args->dim);
   input->uniform(1.0 / args->dim);
 
-  // WV args
+  // WV args -- have to read dict twice ATM (gross)
   std::shared_ptr<Args> args_wv = std::make_shared<Args>(*args);
   args_wv->toggleWV();
   std::shared_ptr<Dictionary> dict_wv = std::make_shared<Dictionary>(args_wv);
@@ -377,21 +380,14 @@ void train(int argc, char** argv) {
   const int64_t ntokens_wv = dict_wv->ntokens();
   assert(ntokens == ntokens_wv);
   
+  // Single threaded ATM (gross)
   std::vector<int32_t> line, labels;
   while (ft_sup.tokenCount < args->epoch * ntokens) {
     ft_sup.step(line, labels);
     ft_wv.step(line, labels);
   }
-  ft_sup.destroy();
-  ft_wv.destroy();
-  
-  ft_sup.model_ = std::make_shared<Model>(ft_sup.input_, ft_sup.output_, ft_sup.args_, 0);
-  ft_sup.saveModel("-sup");
-  ft_sup.saveVectors("-sup");
-
-  ft_wv.model_ = std::make_shared<Model>(ft_wv.input_, ft_wv.output_, ft_wv.args_, 0);
-  ft_wv.saveModel("-wv");
-  ft_wv.saveVectors("-wv");
+  ft_sup.close("-sup");
+  ft_wv.close("-wv");
 }
 
 int main(int argc, char** argv) {

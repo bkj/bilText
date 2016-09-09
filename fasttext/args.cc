@@ -16,30 +16,31 @@
 
 Args::Args() {
   lr = 0.05;
-  dim = 1;
   ws = 5;
   epoch = 5;
-  minCount = 1;
   neg = 5;
   wordNgrams = 1;
   loss = loss_name::ns;
   model = model_name::sg;
   bucket = 2000000;
-  minn = 0;
-  maxn = 0;
   thread = 12;
   lrUpdateRate = 100;
   t = 1e-4;
   label = "__label__";
   verbose = 2;
+
+  dim = 1;
+  minCount = 1;
+  minn = 0;
+  maxn = 0;
 }
 
 void Args::toggleWV() {
   model = model_name::cbow;
   loss = loss_name::ns;
-//  lr = 0.05;
-//  lr = 0.009;
-  lr = 0.00001;
+//  lr = 0.05; // Original weight
+//  lr = 0.009; // Middle weight
+  lr = 0.00001; // No weight
 }
 
 void Args::parseArgs(int argc, char** argv) {
@@ -47,11 +48,8 @@ void Args::parseArgs(int argc, char** argv) {
   if (command == "semisupervised" ) {
     model = model_name::sup;
     loss = loss_name::softmax;
-    minCount = 1;
-    minn = 0;
-    maxn = 0;
-    lr = 0.1;
-//    lr = 0.01;
+    lr = 0.1; // Original weight
+//    lr = 0.01; // Low weight
   } else if (command == "cbow") {
     model = model_name::cbow;
   }

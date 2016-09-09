@@ -51,7 +51,7 @@ class FastText {
     void predict(const std::string&, int32_t, bool);
     
     void setup(std::shared_ptr<Args>, std::shared_ptr<Dictionary>, std::shared_ptr<Matrix>);
-    void destroy();
+    void close(std::string);
     void train();
     void step(std::vector<int32_t>, std::vector<int32_t>);
 };
