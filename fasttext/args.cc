@@ -19,7 +19,7 @@ Args::Args() {
   dim = 1;
   ws = 5;
   epoch = 5;
-  minCount = 5;
+  minCount = 1;
   neg = 5;
   wordNgrams = 1;
   loss = loss_name::ns;
@@ -35,9 +35,11 @@ Args::Args() {
 }
 
 void Args::toggleWV() {
-  lr = 0.05;
-  loss = loss_name::ns;
   model = model_name::cbow;
+  loss = loss_name::ns;
+//  lr = 0.05;
+//  lr = 0.009;
+  lr = 0.00001;
 }
 
 void Args::parseArgs(int argc, char** argv) {
@@ -49,6 +51,7 @@ void Args::parseArgs(int argc, char** argv) {
     minn = 0;
     maxn = 0;
     lr = 0.1;
+//    lr = 0.01;
   } else if (command == "cbow") {
     model = model_name::cbow;
   }
