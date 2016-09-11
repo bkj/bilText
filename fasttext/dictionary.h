@@ -68,7 +68,7 @@ class Dictionary {
     uint32_t hash(const std::string& str);
     void add(const std::string&);
     bool readWord(std::istream&, std::string&);
-    void readFromFile(std::istream&);
+    void readFromFile(std::vector<std::string>&);
     std::string getLabel(int32_t);
     void save(std::ostream&);
     void load(std::istream&);

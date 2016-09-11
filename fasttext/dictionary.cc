@@ -33,12 +33,8 @@ Dictionary::Dictionary(std::shared_ptr<Args> args) {
     word2int_[i] = -1;
   }
   
-  if(!args->input.empty()) {
-    std::cout << "Reading data" << std::endl;
-    std::ifstream ifs(args->input);
-    readFromFile(ifs);
-    ifs.close();
-  }
+  std::vector<std::string> possible_inputs = {args->input, args->input_mono1, args->input_mono2, args->input_par1, args->input_par2};
+  readFromFile(possible_inputs);
 }
 
 void Dictionary::toggleWV(std::shared_ptr<Args> args) {
@@ -179,27 +175,43 @@ bool Dictionary::readWord(std::istream& in, std::string& word)
   return !word.empty();
 }
 
-void Dictionary::readFromFile(std::istream& in) {
+void Dictionary::readFromFile(std::vector<std::string>& possible_inputs) {
   std::string word;
   int64_t minThreshold = 1;
-  while (readWord(in, word)) {
-    add(word);
-    if (ntokens_ % 1000000 == 0 && args_->verbose > 1) {
-      std::cout << "\rRead " << ntokens_  / 1000000 << "M words" << std::flush;
-    }
-    if (size_ > 0.75 * MAX_VOCAB_SIZE) {
-      threshold(minThreshold++);
+  bool any_input = false;
+  
+  for(auto possible_input : possible_inputs) {
+    if(!possible_input.empty()) {
+      any_input = true;
+      std::cout << "Reading data from " << possible_input << std::endl;
+      std::ifstream ifs(possible_input);
+
+      while (readWord(ifs, word)) {
+        add(word);
+        if (ntokens_ % 1000000 == 0 && args_->verbose > 1) {
+          std::cout << "\rRead " << ntokens_  / 1000000 << "M words" << std::flush;
+        }
+        if (size_ > 0.75 * MAX_VOCAB_SIZE) {
+          threshold(minThreshold++);
+        }
+      }
+      
+      ifs.close();
+      std::cout << std::endl;
     }
   }
-  std::cout << "\rRead " << ntokens_  / 1000000 << "M words" << std::endl;
-  threshold(args_->minCount);
-  initTableDiscard();
-  initNgrams();
-  std::cout << "Number of words:  " << nwords_ << std::endl;
-  std::cout << "Number of labels: " << nlabels_ << std::endl;
-  if (size_ == 0) {
-    std::cerr << "Empty vocabulary. Try a smaller -minCount value." << std::endl;
-    exit(EXIT_FAILURE);
+
+  if (any_input) {
+    std::cout << "\rRead " << ntokens_  / 1000000 << "M words in total" << std::endl;
+    threshold(args_->minCount);
+    initTableDiscard();
+    initNgrams();
+    std::cout << "Number of words:  " << nwords_ << std::endl;
+    std::cout << "Number of labels: " << nlabels_ << std::endl;
+    if (size_ == 0) {
+      std::cerr << "Empty vocabulary. Try a smaller -minCount value." << std::endl;
+      exit(EXIT_FAILURE);
+    }
   }
 }
 

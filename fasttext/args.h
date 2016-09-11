@@ -14,13 +14,20 @@
 #include <ostream>
 #include <string>
 
-enum class model_name : int {cbow=1, sg, sup};
+enum class model_name : int {cbow=1, sg, sup, bil};
 enum class loss_name : int {hs=1, ns, softmax};
 
 class Args {
   public:
     Args();
     std::string input;
+    
+    // Bilingual
+    std::string input_mono1;
+    std::string input_mono2;
+    std::string input_par1;
+    std::string input_par2;
+    
     std::string test;
     std::string output;
     double lr;
@@ -47,6 +54,10 @@ class Args {
     void save(std::ostream&);
     void load(std::istream&);
     void toggleWV();
+    
+    void toggleSup();
+    void toggleMono(const int);
+    void togglePar();
 };
 
 #endif

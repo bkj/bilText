@@ -28,6 +28,7 @@ Args::Args() {
   label = "__label__";
   verbose = 2;
 
+  // Customized
   lr = 0.01;
   lr_wv = 0.05;
   dim = 1;
@@ -47,15 +48,58 @@ Args::Args() {
 // 0.1, 0.075 -> 0.853
 // 0.2, 0.075 -> 0.856
 
+// Semisupervised
 void Args::toggleWV() {
   model = model_name::cbow;
   loss = loss_name::ns;
   lr = lr_wv;
 }
 
+
+// Bilingual
+void Args::toggleSup() {
+  model = model_name::sup;
+  loss = loss_name::softmax;
+  
+  input_par1.clear();
+  input_par2.clear();
+  input_mono2.clear();
+  input_mono1.clear();
+}
+
+void Args::toggleMono(const int i) {
+  model = model_name::cbow;
+  loss = loss_name::ns;
+  lr = lr_wv;
+  
+  input.clear();
+  input_par1.clear();
+  input_par2.clear();
+  if (i == 1) {
+    input_mono2.clear();
+  } else if (i == 2) {
+    input_mono1.clear();
+  }
+}
+
+void Args::togglePar() {
+  model = model_name::bil;
+  loss = loss_name::ns;
+  lr = lr_wv;
+
+  input.clear();
+  input_mono1.clear();
+  input_mono2.clear();
+}
+
+
 void Args::parseArgs(int argc, char** argv) {
   std::string command(argv[1]);
-  if (command == "semisupervised" ) {
+  if (command == "semisupervised") {
+    model = model_name::sup;
+    loss = loss_name::softmax;
+    lr = 0.1;
+  } else if (command == "bilingual") {
     model = model_name::sup;
     loss = loss_name::softmax;
     lr = 0.1;
@@ -76,6 +120,17 @@ void Args::parseArgs(int argc, char** argv) {
       exit(EXIT_FAILURE);
     } else if (strcmp(argv[ai], "-input") == 0) {
       input = std::string(argv[ai + 1]);
+
+    // Bilingual
+    } else if (strcmp(argv[ai], "-input-mono1") == 0) {
+      input_mono1 = std::string(argv[ai + 1]);
+    } else if (strcmp(argv[ai], "-input-mono2") == 0) {
+      input_mono2 = std::string(argv[ai + 1]);
+    } else if (strcmp(argv[ai], "-input-par1") == 0) {
+      input_par1 = std::string(argv[ai + 1]);
+    } else if (strcmp(argv[ai], "-input-par2") == 0) {
+      input_par2 = std::string(argv[ai + 1]);
+
     } else if (strcmp(argv[ai], "-test") == 0) {
       test = std::string(argv[ai + 1]);
     } else if (strcmp(argv[ai], "-output") == 0) {

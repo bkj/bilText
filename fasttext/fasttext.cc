@@ -25,6 +25,7 @@ void printUsage() {
   << "usage: fasttext <command> <args>\n\n"
   << "The commands supported by fasttext are:\n\n"
   << "  semisupervised   train a semisupervised classifier (experimental)\n"
+  << "  bilingual        train a bilingual classifier (experimental)\n"
   << "  test             evaluate a supervised classifier\n"
   << "  predict          predict most likely labels\n"
   << "  predict-prob     predict most likely labels with probabilities\n"
@@ -162,10 +163,12 @@ void FastText::loadModel(const std::string& filename) {
   dict_ = std::make_shared<Dictionary>(args_);
   input_ = std::make_shared<Matrix>();
   output_ = std::make_shared<Matrix>();
+  
   args_->load(ifs);
   dict_->load(ifs);
   input_->load(ifs);
   output_->load(ifs);
+  
   model_ = std::make_shared<Model>(input_, output_, args_, 0);
   
   if (args_->model == model_name::sup) {
@@ -257,9 +260,14 @@ void FastText::predict(const std::string& filename, int32_t k, bool print_prob) 
 // vv Train
 
 
-void FastText::supervised(Model& model, real lr,
-                          const std::vector<int32_t>& line,
-                          const std::vector<int32_t>& labels) {
+void FastText::supervised(Model& model, real lr, const std::vector<int32_t>& line, const std::vector<int32_t>& labels) {
+  if (labels.size() == 0 || line.size() == 0) return;
+  std::uniform_int_distribution<> uniform(0, labels.size() - 1);
+  int32_t i = uniform(model.rng);
+  model.update(line, labels[i], lr);
+}
+
+void FastText::bilingual(Model& model, real lr, const std::vector<int32_t>& line, const std::vector<int32_t>& labels) {
   if (labels.size() == 0 || line.size() == 0) return;
   std::uniform_int_distribution<> uniform(0, labels.size() - 1);
   int32_t i = uniform(model.rng);
@@ -303,15 +311,12 @@ void FastText::step(std::vector<int32_t> line, std::vector<int32_t> labels) {
   real lr = args_->lr * (1.0 - progress);
   
   tokenCount += dict_->getLine(ifs, line, labels, model_->rng);
-  
-//  for(auto l : line) {
-//    std::cout << l << " ";
-//  }
-//  std::cout << std::endl;
-  
+    
   if (args_->model == model_name::sup) {
     dict_->addNgrams(line, args_->wordNgrams);
     supervised(*model_, lr, line, labels);
+  } else if (args_->model == model_name::bil) {
+    bilingual(*model_, lr, line, labels);
   } else if (args_->model == model_name::cbow) {
     cbow(*model_, lr, line);
   } else if (args_->model == model_name::sg) {
@@ -372,17 +377,7 @@ void train(int argc, char** argv) {
   std::shared_ptr<Dictionary> dict = std::make_shared<Dictionary>(args);
   std::shared_ptr<Matrix> input = std::make_shared<Matrix>(dict->nwords()+args->bucket, args->dim);
   input->uniform(1.0 / args->dim);
-
-  // >>
-//  std::shared_ptr<Args> args_burnin = std::make_shared<Args>(*args);
-//  args_burnin->toggleWV();
-//  std::shared_ptr<Dictionary> dict_burnin = std::make_shared<Dictionary>(args_burnin);
-//  FastText ft_burnin;
-//  ft_burnin.setup(args_burnin, dict_burnin, input);
-//  std::cout << "burning in" << std::endl;
-//  ft_burnin.train();
-  // <<
-
+  
   // WV args -- have to read dict twice ATM (gross)
   std::shared_ptr<Args> args_wv = std::make_shared<Args>(*args);
   args_wv->toggleWV();
@@ -406,6 +401,54 @@ void train(int argc, char** argv) {
   ft_wv.close("-wv");
 }
 
+void trainBilingual(int argc, char** argv) {
+  std::cout << "--\nCreating input matrix" << std::endl;
+  std::shared_ptr<Args> args = std::make_shared<Args>();
+  args->parseArgs(argc, argv);
+  std::shared_ptr<Dictionary> dict = std::make_shared<Dictionary>(args);
+  std::shared_ptr<Matrix> input = std::make_shared<Matrix>(dict->nwords()+args->bucket, args->dim);
+  input->uniform(1.0 / args->dim);
+  
+  std::shared_ptr<Args> args_sup = std::make_shared<Args>(*args);
+  std::shared_ptr<Args> args_mono1 = std::make_shared<Args>(*args);
+  std::shared_ptr<Args> args_mono2 = std::make_shared<Args>(*args);
+  std::shared_ptr<Args> args_par = std::make_shared<Args>(*args);
+  
+  args_sup->toggleSup();
+  args_mono1->toggleMono(1);
+  args_mono2->toggleMono(2);
+  args_par->togglePar();
+  
+  // Read the data a second time (gross)
+  std::cout << "--\nSupervised dict" << std::endl;
+  std::shared_ptr<Dictionary> dict_sup = std::make_shared<Dictionary>(args_sup);
+  std::cout << "--\nMonolingual(1) dict" << std::endl;
+  std::shared_ptr<Dictionary> dict_mono1 = std::make_shared<Dictionary>(args_mono1);
+  std::cout << "--\nMonolingual(2) dict" << std::endl;
+  std::shared_ptr<Dictionary> dict_mono2 = std::make_shared<Dictionary>(args_mono2);
+  std::cout << "--\nParallel dict" << std::endl;
+  std::shared_ptr<Dictionary> dict_par = std::make_shared<Dictionary>(args_par);
+  
+  FastText ft_sup, ft_mono1, ft_mono2, ft_par;
+  ft_sup.setup(args_sup, dict_sup, input);
+  ft_mono1.setup(args_mono2, dict_mono1, input);
+  ft_mono2.setup(args_mono1, dict_mono2, input);
+  ft_par.setup(args_par, dict_par, input);
+  
+//  const int64_t ntokens = dict->ntokens();
+//  const int64_t ntokens_wv = dict_wv->ntokens();
+//  assert(ntokens == ntokens_wv);
+//  
+//  // Single threaded ATM (gross) -- could add a wrapper that trains a set of models on a single thread
+//  std::vector<int32_t> line, labels;
+//  while (ft_sup.tokenCount < args->epoch * ntokens) {
+//    ft_sup.step(line, labels);
+//    ft_wv.step(line, labels);
+//  }
+//  ft_sup.close("-sup");
+//  ft_wv.close("-wv");
+}
+
 int main(int argc, char** argv) {
   utils::initTables();
   if (argc < 2) {
@@ -415,6 +458,8 @@ int main(int argc, char** argv) {
   std::string command(argv[1]);
   if (command == "semisupervised") {
     train(argc, argv);
+  } else if (command == "bilingual") {
+    trainBilingual(argc, argv);
   } else if (command == "test") {
     test(argc, argv);
   } else if (command == "print-vectors") {

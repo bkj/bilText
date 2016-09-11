@@ -43,10 +43,11 @@ class FastText {
     void loadModel(const std::string&);
     void printInfo(real, real);
 
-    void supervised(Model&, real, const std::vector<int32_t>&,
-                    const std::vector<int32_t>&);
+    void supervised(Model&, real, const std::vector<int32_t>&, const std::vector<int32_t>&);
+    void bilingual(Model&, real, const std::vector<int32_t>&, const std::vector<int32_t>&);
     void cbow(Model&, real, const std::vector<int32_t>&);
     void skipgram(Model&, real, const std::vector<int32_t>&);
+    
     void test(const std::string&, int32_t);
     void predict(const std::string&, int32_t, bool);
     
