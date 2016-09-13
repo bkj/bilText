@@ -22,13 +22,14 @@ Args::Args() {
   loss = loss_name::ns;
   model = model_name::sg;
   bucket = 2000000;
-  thread = 12;
+  
   lrUpdateRate = 100;
   t = 1e-4;
   label = "__label__";
   verbose = 2;
 
   // Customized
+  thread = 1;
   lr = 0.01;
   lr_wv = 0.05;
   dim = 1;

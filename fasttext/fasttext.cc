@@ -205,7 +205,7 @@ void FastText::test(const std::string& filename, int32_t k) {
     exit(EXIT_FAILURE);
   }
   while (ifs.peek() != EOF) {
-    dict_->getLine(ifs, line, labels, model_->rng);
+    dict_->getLine(ifs, line, labels, args_->model, model_->rng);
     dict_->addNgrams(line, args_->wordNgrams);
     if (labels.size() > 0 && line.size() > 0) {
       std::vector<std::pair<real, int32_t>> predictions;
@@ -234,7 +234,7 @@ void FastText::predict(const std::string& filename, int32_t k, bool print_prob) 
     exit(EXIT_FAILURE);
   }
   while (ifs.peek() != EOF) {
-    dict_->getLine(ifs, line, labels, model_->rng);
+    dict_->getLine(ifs, line, labels, args_->model, model_->rng);
     dict_->addNgrams(line, args_->wordNgrams);
     if (line.empty()) {
       std::cout << "n/a" << std::endl;
@@ -314,8 +314,8 @@ void FastText::bilingual_cbow(Model& model, real lr, const std::vector<int32_t>&
       bow.insert(bow.end(), ngrams.cbegin(), ngrams.cend());
     }
     
-    real lr_bil = lr * (args_->ws) / line2.size();
-    model.update(bow, line1[w], lr_bil);
+//    real lr_bil = lr * (args_->ws) / line2.size();
+    model.update(bow, line1[w], lr);
   }
 }
 
@@ -339,7 +339,7 @@ void FastText::step() {
   progress = real(tokenCount) / (args_->epoch * dict_->ntokens());
   real lr = args_->lr * (1.0 - progress);
   
-  tokenCount += dict_->getLine(ifs[0], line1, labels, model_->rng);
+  tokenCount += dict_->getLine(ifs[0], line1, labels, args_->model, model_->rng);
   
   if (args_->model == model_name::sup) {
     dict_->addNgrams(line1, args_->wordNgrams);
@@ -349,10 +349,9 @@ void FastText::step() {
   } else if (args_->model == model_name::sg) {
     skipgram(*model_, lr, line1);
   } else if (args_->model == model_name::bil) {
-    cbow(*model_, lr, line1);
-    
-    tokenCount += dict_->getLine(ifs[1], line2, labels, model_->rng);
-    cbow(*model_, lr, line2);
+    tokenCount += dict_->getLine(ifs[1], line2, labels, args_->model, model_->rng);
+    bilingual_cbow(*model_, lr, line1, line2);
+    bilingual_cbow(*model_, lr, line2, line1);
   }
 
   if (tokenCount % args_->lrUpdateRate == 0) {
@@ -448,13 +447,13 @@ void trainBilingual(int argc, char** argv) {
   input->uniform(1.0 / args->dim);
   
 //  std::shared_ptr<Args> args_sup = std::make_shared<Args>(*args);
-  std::shared_ptr<Args> args_mono1 = std::make_shared<Args>(*args);
-  std::shared_ptr<Args> args_mono2 = std::make_shared<Args>(*args);
+//  std::shared_ptr<Args> args_mono1 = std::make_shared<Args>(*args);
+//  std::shared_ptr<Args> args_mono2 = std::make_shared<Args>(*args);
   std::shared_ptr<Args> args_par   = std::make_shared<Args>(*args);
   
 //  args_sup->toggleSup(); // Is this right? Means it reads all inputs...
-  args_mono1->toggleMono(1);
-  args_mono2->toggleMono(2);
+//  args_mono1->toggleMono(1);
+//  args_mono2->toggleMono(2);
   args_par->togglePar();
   
   // Read the data a second time (gross)
@@ -462,21 +461,21 @@ void trainBilingual(int argc, char** argv) {
 //  std::shared_ptr<Dictionary> dict_sup = std::make_shared<Dictionary>(args_sup);
   
   // !! Big problem caused by different vocabs
-  std::cout << "--\nMonolingual(1) dict" << std::endl;
-  std::shared_ptr<Dictionary> dict_mono1 = std::make_shared<Dictionary>(args_mono1);
-  std::cout << "--\nMonolingual(2) dict" << std::endl;
-  std::shared_ptr<Dictionary> dict_mono2 = std::make_shared<Dictionary>(args_mono2);
-  std::cout << "--\nParallel dict" << std::endl;
-  std::shared_ptr<Dictionary> dict_par = std::make_shared<Dictionary>(args_par);
+//  std::cout << "--\nMonolingual(1) dict" << std::endl;
+//  std::shared_ptr<Dictionary> dict_mono1 = std::make_shared<Dictionary>(args_mono1);
+//  std::cout << "--\nMonolingual(2) dict" << std::endl;
+//  std::shared_ptr<Dictionary> dict_mono2 = std::make_shared<Dictionary>(args_mono2);
+//  std::cout << "--\nParallel dict" << std::endl;
+//  std::shared_ptr<Dictionary> dict_par = std::make_shared<Dictionary>(args_par);
 
   FastText ft_sup, ft_mono1, ft_mono2, ft_par;
 //  ft_sup.setup(args_sup, dict_sup, input);
-  ft_mono1.setup(args_mono1, dict_mono1, input);
-  ft_mono2.setup(args_mono2, dict_mono2, input);
-  ft_par.setup(args_par, dict_par, input);
+//  ft_mono1.setup(args_mono1, dict, input);
+//  ft_mono2.setup(args_mono2, dict, input);
+  ft_par.setup(args_par, dict, input);
 
 //  std::vector<FastText*> models = {&ft_sup, &ft_mono1, &ft_mono2, &ft_par};
-  std::vector<FastText*> models = {&ft_mono1, &ft_mono2, &ft_par};
+  std::vector<FastText*> models = {&ft_par};
   // Train model w/ the least progress
   real min_progress(0);
   while(min_progress < 1) {
@@ -493,8 +492,8 @@ void trainBilingual(int argc, char** argv) {
   }
   
 //  ft_sup.close("-sup");
-  ft_mono1.close("-mono1");
-  ft_mono2.close("-mono2");
+//  ft_mono1.close("-mono1");
+//  ft_mono2.close("-mono2");
   ft_par.close("-par");
 }
 

@@ -60,7 +60,7 @@ class Dictionary {
     int64_t ntokens();
     int32_t getId(const std::string&);
     entry_type getType(int32_t);
-    bool discard(int32_t, real);
+    bool discard(int32_t, model_name mname, real);
     std::string getWord(int32_t);
     const std::vector<int32_t>& getNgrams(int32_t);
     const std::vector<int32_t> getNgrams(const std::string&);
@@ -74,8 +74,7 @@ class Dictionary {
     void load(std::istream&);
     std::vector<int64_t> getCounts(entry_type);
     void addNgrams(std::vector<int32_t>&, int32_t);
-    int32_t getLine(std::istream&, std::vector<int32_t>&,
-                    std::vector<int32_t>&, std::minstd_rand&);
+    int32_t getLine(std::istream&, std::vector<int32_t>&, std::vector<int32_t>&, model_name mname, std::minstd_rand&);
     void toggleWV(std::shared_ptr<Args>);
 };
 

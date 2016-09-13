@@ -75,17 +75,15 @@ python ~/projects/clf-test/vec-logreg.py \
 rm .bil-dev-*
 
 time fasttext bilingual \
-    -input ~/projects/clf-test/data/ft-train-s-u-head.txt \
-    -input-mono1 ~/projects/clf-test/data/ft-train-s-u-head.txt \
-    -input-mono2 ~/projects/clf-test/data/ft-train-t-u-head.txt \
-    -input-par1 ~/projects/clf-test/data/ft-train-s-u-head.txt \
-    -input-par2 ~/projects/clf-test/data/ft-train-t-u-head.txt \
+    -input ./tmp.txt \
+    -input-mono1 ~/projects/clf-test/data/ft-train-s-u.txt \
+    -input-mono2 ~/projects/clf-test/data/ft-train-t-u.txt \
+    -input-par1 ~/projects/clf-test/data/ft-train-s-u.txt \
+    -input-par2 ~/projects/clf-test/data/ft-train-t-u.txt \
     -output ./.bil-dev \
     -dim 10 -lr 0.075
 
-cat .bil-dev-mono1.vec | grep -E ^you_
-cat .bil-dev-mono2.vec | grep -E ^you_
-cat .bil-dev-par.vec | grep -E ^you_
+cat .bil-dev-par.vec | head -n 20
 
 python ~/projects/clf-test/vec-logreg.py \
     ~/projects/cpp/fasttext/.bil-dev-par.vec \
@@ -95,4 +93,10 @@ python ~/projects/clf-test/vec-logreg.py \
 python ~/projects/clf-test/vec-logreg.py \
     ~/projects/cpp/fasttext/.bil-dev-par.vec \
     ~/projects/clf-test/data/ft-train-t.txt \
-    ~/projects/clf-test/data/ft-test-t.txt # 0.50
+    ~/projects/clf-test/data/ft-test-t.txt # 0.85
+
+python ~/projects/clf-test/vec-logreg.py \
+    ~/projects/cpp/fasttext/.bil-dev-par.vec \
+    ~/projects/clf-test/data/ft-train-s.txt \
+    ~/projects/clf-test/data/ft-test-t.txt # 0.85
+
