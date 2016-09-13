@@ -26,10 +26,11 @@
 class FastText {
   private:
     clock_t start;
-    std::ifstream ifs;
+    std::vector<std::ifstream> ifs;
     
   public:
     std::atomic<int64_t> tokenCount;
+    real progress;
     std::shared_ptr<Args> args_;
     std::shared_ptr<Dictionary> dict_;
     std::shared_ptr<Matrix> input_;
@@ -54,7 +55,7 @@ class FastText {
     void setup(std::shared_ptr<Args>, std::shared_ptr<Dictionary>, std::shared_ptr<Matrix>);
     void close(std::string);
     void train();
-    void step(std::vector<int32_t>, std::vector<int32_t>);
+    void step();
 };
 
 #endif

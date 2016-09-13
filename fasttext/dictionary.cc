@@ -126,8 +126,7 @@ uint32_t Dictionary::hash(const std::string& str) {
   return h;
 }
 
-void Dictionary::computeNgrams(const std::string& word,
-                               std::vector<int32_t>& ngrams) {
+void Dictionary::computeNgrams(const std::string& word, std::vector<int32_t>& ngrams) {
   for (size_t i = 0; i < word.size(); i++) {
     std::string ngram;
     if ((word[i] & 0xC0) == 0x80) continue;

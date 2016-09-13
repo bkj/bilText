@@ -267,15 +267,7 @@ void FastText::supervised(Model& model, real lr, const std::vector<int32_t>& lin
   model.update(line, labels[i], lr);
 }
 
-void FastText::bilingual(Model& model, real lr, const std::vector<int32_t>& line, const std::vector<int32_t>& labels) {
-  if (labels.size() == 0 || line.size() == 0) return;
-  std::uniform_int_distribution<> uniform(0, labels.size() - 1);
-  int32_t i = uniform(model.rng);
-  model.update(line, labels[i], lr);
-}
-
-void FastText::cbow(Model& model, real lr,
-                    const std::vector<int32_t>& line) {
+void FastText::bilingual(Model& model, real lr, const std::vector<int32_t>& line, const std::vector<int32_t>& line2) {
   std::vector<int32_t> bow;
   std::uniform_int_distribution<> uniform(1, args_->ws);
   for (int32_t w = 0; w < line.size(); w++) {
@@ -291,8 +283,23 @@ void FastText::cbow(Model& model, real lr,
   }
 }
 
-void FastText::skipgram(Model& model, real lr,
-                        const std::vector<int32_t>& line) {
+void FastText::cbow(Model& model, real lr, const std::vector<int32_t>& line) {
+  std::vector<int32_t> bow;
+  std::uniform_int_distribution<> uniform(1, args_->ws);
+  for (int32_t w = 0; w < line.size(); w++) {
+    int32_t boundary = uniform(model.rng);
+    bow.clear();
+    for (int32_t c = -boundary; c <= boundary; c++) {
+      if (c != 0 && w + c >= 0 && w + c < line.size()) {
+        const std::vector<int32_t>& ngrams = dict_->getNgrams(line[w + c]);
+        bow.insert(bow.end(), ngrams.cbegin(), ngrams.cend());
+      }
+    }
+    model.update(bow, line[w], lr);
+  }
+}
+
+void FastText::skipgram(Model& model, real lr, const std::vector<int32_t>& line) {
   std::uniform_int_distribution<> uniform(1, args_->ws);
   for (int32_t w = 0; w < line.size(); w++) {
     int32_t boundary = uniform(model.rng);
@@ -305,22 +312,24 @@ void FastText::skipgram(Model& model, real lr,
   }
 }
 
-void FastText::step(std::vector<int32_t> line, std::vector<int32_t> labels) {
-  const int64_t ntokens = dict_->ntokens();
-  real progress = real(tokenCount) / (args_->epoch * ntokens);
+void FastText::step() {
+  std::vector<int32_t> line1, line2, labels;
+  
+  progress = real(tokenCount) / (args_->epoch * dict_->ntokens());
   real lr = args_->lr * (1.0 - progress);
   
-  tokenCount += dict_->getLine(ifs, line, labels, model_->rng);
-    
+  tokenCount += dict_->getLine(ifs[0], line1, labels, model_->rng);
+  
   if (args_->model == model_name::sup) {
-    dict_->addNgrams(line, args_->wordNgrams);
-    supervised(*model_, lr, line, labels);
-  } else if (args_->model == model_name::bil) {
-    bilingual(*model_, lr, line, labels);
+    dict_->addNgrams(line1, args_->wordNgrams);
+    supervised(*model_, lr, line1, labels);
   } else if (args_->model == model_name::cbow) {
-    cbow(*model_, lr, line);
+    cbow(*model_, lr, line1);
   } else if (args_->model == model_name::sg) {
-    skipgram(*model_, lr, line);
+    skipgram(*model_, lr, line1);
+  } else if (args_->model == model_name::bil) {
+    tokenCount += dict_->getLine(ifs[1], line2, labels, model_->rng);
+    bilingual(*model_, lr, line1, line2);
   }
 
   if (tokenCount % args_->lrUpdateRate == 0) {
@@ -332,9 +341,8 @@ void FastText::step(std::vector<int32_t> line, std::vector<int32_t> labels) {
 
 void FastText::train() {
   const int64_t ntokens = dict_->ntokens();
-  std::vector<int32_t> line, labels;
   while (tokenCount < args_->epoch * ntokens) {
-    step(line, labels);
+    step();
   }
   std::cout << std::endl;
   close("");
@@ -352,20 +360,28 @@ void FastText::setup(std::shared_ptr<Args> args, std::shared_ptr<Dictionary> dic
   }
   output_->zero();
   
-  start = clock();
-  tokenCount = 0;
-  ifs = std::ifstream(args_->input);
-  
   model_ = std::make_shared<Model>(input_, output_, args_, 0);
   if (args_->model == model_name::sup) {
     model_->setTargetCounts(dict_->getCounts(entry_type::label));
   } else {
     model_->setTargetCounts(dict_->getCounts(entry_type::word));
   }
+  
+  start = clock();
+  tokenCount = 0;
+  
+  std::vector<std::string> possible_inputs = {args->input, args->input_mono1, args->input_mono2, args->input_par1, args->input_par2};
+  for(auto possible_input : possible_inputs) {
+    if(!possible_input.empty()) {
+      ifs.push_back(std::ifstream(possible_input));
+    }
+  }
 }
 
 void FastText::close(std::string suffix) {
-  ifs.close();
+  for(int i = 0; i < ifs.size(); i++) {
+    ifs[i].close();
+  }
   model_ = std::make_shared<Model>(input_, output_, args_, 0);
   saveModel(suffix);
   saveVectors(suffix);
@@ -392,10 +408,9 @@ void train(int argc, char** argv) {
   assert(ntokens == ntokens_wv);
   
   // Single threaded ATM (gross)
-  std::vector<int32_t> line, labels;
   while (ft_sup.tokenCount < args->epoch * ntokens) {
-    ft_sup.step(line, labels);
-    ft_wv.step(line, labels);
+    ft_sup.step();
+    ft_wv.step();
   }
   ft_sup.close("-sup");
   ft_wv.close("-wv");
@@ -428,25 +443,33 @@ void trainBilingual(int argc, char** argv) {
   std::shared_ptr<Dictionary> dict_mono2 = std::make_shared<Dictionary>(args_mono2);
   std::cout << "--\nParallel dict" << std::endl;
   std::shared_ptr<Dictionary> dict_par = std::make_shared<Dictionary>(args_par);
-  
+
   FastText ft_sup, ft_mono1, ft_mono2, ft_par;
   ft_sup.setup(args_sup, dict_sup, input);
   ft_mono1.setup(args_mono2, dict_mono1, input);
   ft_mono2.setup(args_mono1, dict_mono2, input);
   ft_par.setup(args_par, dict_par, input);
+
+//  std::vector<FastText*> models = {&ft_sup, &ft_mono1, &ft_mono2, &ft_par};
+  std::vector<FastText*> models = {&ft_sup};
+  real min_progress(0);
+  while(min_progress < 1) {
+    FastText* min_model_ = models[0];
+    real min_progress_ = min_model_->progress;
+    for(auto model : models) {
+      if(model->progress < min_progress_) {
+        min_model_ = model;
+        min_progress_ = model->progress;
+      }
+    }
+    min_model_->step();
+    min_progress = min_progress_;
+  }
   
-//  const int64_t ntokens = dict->ntokens();
-//  const int64_t ntokens_wv = dict_wv->ntokens();
-//  assert(ntokens == ntokens_wv);
-//  
-//  // Single threaded ATM (gross) -- could add a wrapper that trains a set of models on a single thread
-//  std::vector<int32_t> line, labels;
-//  while (ft_sup.tokenCount < args->epoch * ntokens) {
-//    ft_sup.step(line, labels);
-//    ft_wv.step(line, labels);
-//  }
-//  ft_sup.close("-sup");
-//  ft_wv.close("-wv");
+  ft_sup.close("-sup");
+  ft_mono1.close("-mono1");
+  ft_mono2.close("-mono2");
+  ft_par.close("-par");
 }
 
 int main(int argc, char** argv) {
