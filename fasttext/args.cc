@@ -55,7 +55,6 @@ void Args::toggleWV() {
   lr = lr_wv;
 }
 
-
 // Bilingual
 void Args::toggleSup() {
   model = model_name::sup;
@@ -85,11 +84,15 @@ void Args::toggleMono(const int i) {
 void Args::togglePar() {
   model = model_name::bil;
   loss = loss_name::ns;
-  lr = lr_wv;
+  lr = lr_wv; // Is this appropriate?
 
   input.clear();
   input_mono1.clear();
   input_mono2.clear();
+  
+  // Test
+//  input_par1.clear();
+//  input_par2.clear();
 }
 
 

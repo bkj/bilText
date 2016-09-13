@@ -267,22 +267,6 @@ void FastText::supervised(Model& model, real lr, const std::vector<int32_t>& lin
   model.update(line, labels[i], lr);
 }
 
-void FastText::bilingual(Model& model, real lr, const std::vector<int32_t>& line, const std::vector<int32_t>& line2) {
-  std::vector<int32_t> bow;
-  std::uniform_int_distribution<> uniform(1, args_->ws);
-  for (int32_t w = 0; w < line.size(); w++) {
-    int32_t boundary = uniform(model.rng);
-    bow.clear();
-    for (int32_t c = -boundary; c <= boundary; c++) {
-      if (c != 0 && w + c >= 0 && w + c < line.size()) {
-        const std::vector<int32_t>& ngrams = dict_->getNgrams(line[w + c]);
-        bow.insert(bow.end(), ngrams.cbegin(), ngrams.cend());
-      }
-    }
-    model.update(bow, line[w], lr);
-  }
-}
-
 void FastText::cbow(Model& model, real lr, const std::vector<int32_t>& line) {
   std::vector<int32_t> bow;
   std::uniform_int_distribution<> uniform(1, args_->ws);
@@ -312,6 +296,43 @@ void FastText::skipgram(Model& model, real lr, const std::vector<int32_t>& line)
   }
 }
 
+// This is "transgram" -- but implemented w/ `cbow` rather than `skipgram`
+void FastText::bilingual_cbow(Model& model, real lr, const std::vector<int32_t>& line1, const std::vector<int32_t>& line2) {
+  // !! Use learning rate adjustment?
+  
+  // "The learning rate is the global learning rate
+  //   (since all the skip-grams are synchronized, they all share the same learning
+  //   rate) multiplied by window_size / size_of_sentence(y) (the longer the sentence
+  //   y, the less it should influence the words of x)"
+  
+  std::vector<int32_t> bow;
+  std::uniform_int_distribution<> uniform(1, args_->ws);
+  for (int32_t w = 0; w < line1.size(); w++) {
+    bow.clear();
+    for (int32_t i = 0; i < line2.size(); i++) {
+      const std::vector<int32_t>& ngrams = dict_->getNgrams(line2[i]);
+      bow.insert(bow.end(), ngrams.cbegin(), ngrams.cend());
+    }
+    
+    real lr_bil = lr * (args_->ws) / line2.size();
+    model.update(bow, line1[w], lr_bil);
+  }
+}
+
+void FastText::bilingual_skipgram(Model& model, real lr, const std::vector<int32_t>& line1, const std::vector<int32_t>& line2) {
+  // !! Adjust learning rate as in bilingual_cbow?
+  
+  real lr_bil = lr * (args_->ws) / line2.size();
+  
+  std::uniform_int_distribution<> uniform(1, args_->ws);
+  for (int32_t w = 0; w < line1.size(); w++) {
+    const std::vector<int32_t>& ngrams = dict_->getNgrams(line1[w]);
+    for (int32_t i = 0; i < line2.size(); i++) {
+      model.update(ngrams, line2[i], lr_bil);
+    }
+  }
+}
+
 void FastText::step() {
   std::vector<int32_t> line1, line2, labels;
   
@@ -328,8 +349,10 @@ void FastText::step() {
   } else if (args_->model == model_name::sg) {
     skipgram(*model_, lr, line1);
   } else if (args_->model == model_name::bil) {
+    cbow(*model_, lr, line1);
+    
     tokenCount += dict_->getLine(ifs[1], line2, labels, model_->rng);
-    bilingual(*model_, lr, line1, line2);
+    cbow(*model_, lr, line2);
   }
 
   if (tokenCount % args_->lrUpdateRate == 0) {
@@ -424,19 +447,21 @@ void trainBilingual(int argc, char** argv) {
   std::shared_ptr<Matrix> input = std::make_shared<Matrix>(dict->nwords()+args->bucket, args->dim);
   input->uniform(1.0 / args->dim);
   
-  std::shared_ptr<Args> args_sup = std::make_shared<Args>(*args);
+//  std::shared_ptr<Args> args_sup = std::make_shared<Args>(*args);
   std::shared_ptr<Args> args_mono1 = std::make_shared<Args>(*args);
   std::shared_ptr<Args> args_mono2 = std::make_shared<Args>(*args);
-  std::shared_ptr<Args> args_par = std::make_shared<Args>(*args);
+  std::shared_ptr<Args> args_par   = std::make_shared<Args>(*args);
   
-  args_sup->toggleSup();
+//  args_sup->toggleSup(); // Is this right? Means it reads all inputs...
   args_mono1->toggleMono(1);
   args_mono2->toggleMono(2);
   args_par->togglePar();
   
   // Read the data a second time (gross)
-  std::cout << "--\nSupervised dict" << std::endl;
-  std::shared_ptr<Dictionary> dict_sup = std::make_shared<Dictionary>(args_sup);
+//  std::cout << "--\nSupervised dict" << std::endl;
+//  std::shared_ptr<Dictionary> dict_sup = std::make_shared<Dictionary>(args_sup);
+  
+  // !! Big problem caused by different vocabs
   std::cout << "--\nMonolingual(1) dict" << std::endl;
   std::shared_ptr<Dictionary> dict_mono1 = std::make_shared<Dictionary>(args_mono1);
   std::cout << "--\nMonolingual(2) dict" << std::endl;
@@ -445,13 +470,14 @@ void trainBilingual(int argc, char** argv) {
   std::shared_ptr<Dictionary> dict_par = std::make_shared<Dictionary>(args_par);
 
   FastText ft_sup, ft_mono1, ft_mono2, ft_par;
-  ft_sup.setup(args_sup, dict_sup, input);
-  ft_mono1.setup(args_mono2, dict_mono1, input);
-  ft_mono2.setup(args_mono1, dict_mono2, input);
+//  ft_sup.setup(args_sup, dict_sup, input);
+  ft_mono1.setup(args_mono1, dict_mono1, input);
+  ft_mono2.setup(args_mono2, dict_mono2, input);
   ft_par.setup(args_par, dict_par, input);
 
 //  std::vector<FastText*> models = {&ft_sup, &ft_mono1, &ft_mono2, &ft_par};
-  std::vector<FastText*> models = {&ft_sup};
+  std::vector<FastText*> models = {&ft_mono1, &ft_mono2, &ft_par};
+  // Train model w/ the least progress
   real min_progress(0);
   while(min_progress < 1) {
     FastText* min_model_ = models[0];
@@ -466,7 +492,7 @@ void trainBilingual(int argc, char** argv) {
     min_progress = min_progress_;
   }
   
-  ft_sup.close("-sup");
+//  ft_sup.close("-sup");
   ft_mono1.close("-mono1");
   ft_mono2.close("-mono2");
   ft_par.close("-par");
