@@ -216,7 +216,7 @@ int32_t Model::getNegative(int32_t target) {
   do {
     negative = negatives[negpos];
     negpos = (negpos + 1) % negatives.size();
-  } while ((target == negative) || (dict_->getWord(target).back() == dict_->getWord(negative).back()));
+  } while ((target == negative) || (dict_->getWord(target).back() != dict_->getWord(negative).back())); // (*)
   // Should replace this with a "language mask" : [s, t, s, t, ...] for speed
 //  std::cout << dict_->getWord(target) << " " << dict_->getWord(negative) << std::endl;
   return negative;

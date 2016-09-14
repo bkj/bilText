@@ -143,3 +143,31 @@ R
 options(stringsAsFactors = FALSE)
 x <- read.csv('./.bil-dev-par.vec', sep = ' ', skip=1, header=F, quote='')
 plot(x[,2], x[,3], cex=0.2, col = 1 + grepl('_s$', x[,1]))
+
+
+# --
+# Train two separate skipgrams
+# They shouldn't really repel each other
+
+./make.sh
+
+time fasttext bilingual \
+    -input ./empty \
+    -input-par2 s-5000.txt \
+    -input-par1 t-5000.txt \
+    -output ./models/dev \
+    -dim 2 -epoch 5
+
+
+
+
+
+
+
+
+
+
+
+
+
+

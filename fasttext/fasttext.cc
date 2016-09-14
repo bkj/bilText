@@ -321,25 +321,50 @@ void FastText::bilingual_cbow(Model& model, real lr, const std::vector<int32_t>&
 }
 
 void FastText::bilingual_skipgram(Model& model, real lr, const std::vector<int32_t>& line1, const std::vector<int32_t>& line2) {
+
+  // Window
+//  std::uniform_int_distribution<> uniform(1, args_->ws);
+//  for (int32_t w = 0; w < line1.size(); w++) {
+//    int32_t boundary = uniform(model.rng);
+//    const std::vector<int32_t>& ngrams1 = dict_->getNgrams(line1[w]);
+//    const std::vector<int32_t>& ngrams2 = dict_->getNgrams(line2[w]);
+//    for (int32_t c = -boundary; c <= boundary; c++) {
+//      if (c != 0 && w + c >= 0 && w + c < line1.size()) {
+//        model.update(ngrams2, line1[w + c], lr);
+//        model.update(ngrams1, line2[w + c], lr);
+//      }
+//    }
+//  }
+
+  // Whole sentence
+//  std::uniform_int_distribution<> uniform(1, args_->ws);
+//
+//  for (int32_t w = 0; w < line1.size(); w++) {
+//    
+//    const std::vector<int32_t>& ngrams1 = dict_->getNgrams(line1[w]);
+//    const std::vector<int32_t>& ngrams2 = dict_->getNgrams(line2[w]);
+//    
+//    for (int32_t c = 0; c < line1.size(); c++) {
+//      model.update(ngrams2, line1[c], lr);
+//      model.update(ngrams1, line2[c], lr);
+//    }
+//  }
+
+  std::uniform_int_distribution<> uniform(1, args_->ws);
+  for (int32_t w = 0; w < line2.size(); w++) {
+    const std::vector<int32_t>& ngrams2 = dict_->getNgrams(line2[w]);
+    for (int32_t c = 0; c < line1.size(); c++) {
+      model.update(ngrams2, line1[c], lr);
+    }
+  }
   
-//  real lr_bil1 = lr * (args_->ws) / line1.size();
-//  real lr_bil2 = lr * (args_->ws) / line2.size();
-  
-  // Forwards
   for (int32_t w = 0; w < line1.size(); w++) {
-    const std::vector<int32_t>& ngrams = dict_->getNgrams(line1[w]);
-    for (int32_t i = 0; i < line2.size(); i++) {
-      model.update(ngrams, line2[i], lr);
+    const std::vector<int32_t>& ngrams1 = dict_->getNgrams(line1[w]);
+    for (int32_t c = 0; c < line2.size(); c++) {
+      model.update(ngrams1, line2[c], lr);
     }
   }
 
-  // Backwards
-  for (int32_t w = 0; w < line2.size(); w++) {
-    const std::vector<int32_t>& ngrams = dict_->getNgrams(line2[w]);
-    for (int32_t i = 0; i < line1.size(); i++) {
-      model.update(ngrams, line1[i], lr);
-    }
-  }
 }
 
 void FastText::step() {
@@ -347,7 +372,10 @@ void FastText::step() {
   
   progress = real(tokenCount) / (args_->epoch * dict_->ntokens());
   real lr = args_->lr * (1.0 - progress);
-  tokenCount += dict_->getLine(ifs[0], line1, labels, args_->model, model_->rng);
+  
+  std::uniform_real_distribution<> uniform(0, 1);
+  real u = uniform(model_->rng);
+  tokenCount += dict_->getLine2(ifs[0], line1, labels, args_->model, u);
 
   if (args_->model == model_name::sup) {
     dict_->addNgrams(line1, args_->wordNgrams);
@@ -357,10 +385,10 @@ void FastText::step() {
   } else if (args_->model == model_name::sg) {
     skipgram(*model_, lr, line1);
   } else if (args_->model == model_name::bil) {
-//    tokenCount += dict_->getLine(ifs[1], line2, labels, args_->model, model_->rng);
-//    bilingual_skipgram(*model_, lr, line1, line2);
+    tokenCount += dict_->getLine2(ifs[1], line2, labels, args_->model, u);
     skipgram(*model_, lr, line1);
     skipgram(*model_, lr, line2);
+    bilingual_skipgram(*model_, lr, line1, line2);
   }
 
   if (tokenCount % args_->lrUpdateRate == 0) {
@@ -406,6 +434,7 @@ void FastText::setup(std::shared_ptr<Args> args, std::shared_ptr<Dictionary> dic
   std::vector<std::string> possible_inputs = {args->input, args->input_mono1, args->input_mono2, args->input_par1, args->input_par2};
   for(auto possible_input : possible_inputs) {
     if(!possible_input.empty()) {
+      std::cout << "adding : " << possible_input << std::endl;
       ifs.push_back(std::ifstream(possible_input));
     }
   }
@@ -502,6 +531,8 @@ void trainBilingual(int argc, char** argv) {
 // Tested sup
 
 int main(int argc, char** argv) {
+  srand(time(NULL));
+  
   utils::initTables();
   if (argc < 2) {
     printUsage();
