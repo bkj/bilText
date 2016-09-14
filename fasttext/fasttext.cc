@@ -12,6 +12,7 @@
 #include <fenv.h>
 #include <math.h>
 #include <assert.h>
+#include <time.h>
 
 #include <iostream>
 #include <iomanip>
@@ -19,6 +20,7 @@
 #include <string>
 #include <vector>
 #include <algorithm>
+
 
 void printUsage() {
   std::cout
@@ -172,9 +174,9 @@ void FastText::loadModel(const std::string& filename) {
   model_ = std::make_shared<Model>(input_, output_, args_, 0);
   
   if (args_->model == model_name::sup) {
-    model_->setTargetCounts(dict_->getCounts(entry_type::label));
+    model_->setTargetCounts(dict_->getCounts(entry_type::label), dict_);
   } else {
-    model_->setTargetCounts(dict_->getCounts(entry_type::word));
+    model_->setTargetCounts(dict_->getCounts(entry_type::word), dict_);
   }
   ifs.close();
 }
@@ -314,21 +316,28 @@ void FastText::bilingual_cbow(Model& model, real lr, const std::vector<int32_t>&
       bow.insert(bow.end(), ngrams.cbegin(), ngrams.cend());
     }
     
-//    real lr_bil = lr * (args_->ws) / line2.size();
     model.update(bow, line1[w], lr);
   }
 }
 
 void FastText::bilingual_skipgram(Model& model, real lr, const std::vector<int32_t>& line1, const std::vector<int32_t>& line2) {
-  // !! Adjust learning rate as in bilingual_cbow?
   
-  real lr_bil = lr * (args_->ws) / line2.size();
+//  real lr_bil1 = lr * (args_->ws) / line1.size();
+//  real lr_bil2 = lr * (args_->ws) / line2.size();
   
-  std::uniform_int_distribution<> uniform(1, args_->ws);
+  // Forwards
   for (int32_t w = 0; w < line1.size(); w++) {
     const std::vector<int32_t>& ngrams = dict_->getNgrams(line1[w]);
     for (int32_t i = 0; i < line2.size(); i++) {
-      model.update(ngrams, line2[i], lr_bil);
+      model.update(ngrams, line2[i], lr);
+    }
+  }
+
+  // Backwards
+  for (int32_t w = 0; w < line2.size(); w++) {
+    const std::vector<int32_t>& ngrams = dict_->getNgrams(line2[w]);
+    for (int32_t i = 0; i < line1.size(); i++) {
+      model.update(ngrams, line1[i], lr);
     }
   }
 }
@@ -338,9 +347,8 @@ void FastText::step() {
   
   progress = real(tokenCount) / (args_->epoch * dict_->ntokens());
   real lr = args_->lr * (1.0 - progress);
-  
   tokenCount += dict_->getLine(ifs[0], line1, labels, args_->model, model_->rng);
-  
+
   if (args_->model == model_name::sup) {
     dict_->addNgrams(line1, args_->wordNgrams);
     supervised(*model_, lr, line1, labels);
@@ -349,9 +357,10 @@ void FastText::step() {
   } else if (args_->model == model_name::sg) {
     skipgram(*model_, lr, line1);
   } else if (args_->model == model_name::bil) {
-    tokenCount += dict_->getLine(ifs[1], line2, labels, args_->model, model_->rng);
-    bilingual_cbow(*model_, lr, line1, line2);
-    bilingual_cbow(*model_, lr, line2, line1);
+//    tokenCount += dict_->getLine(ifs[1], line2, labels, args_->model, model_->rng);
+//    bilingual_skipgram(*model_, lr, line1, line2);
+    skipgram(*model_, lr, line1);
+    skipgram(*model_, lr, line2);
   }
 
   if (tokenCount % args_->lrUpdateRate == 0) {
@@ -384,10 +393,12 @@ void FastText::setup(std::shared_ptr<Args> args, std::shared_ptr<Dictionary> dic
   
   model_ = std::make_shared<Model>(input_, output_, args_, 0);
   if (args_->model == model_name::sup) {
-    model_->setTargetCounts(dict_->getCounts(entry_type::label));
+    model_->setTargetCounts(dict_->getCounts(entry_type::label), dict_);
   } else {
-    model_->setTargetCounts(dict_->getCounts(entry_type::word));
+    model_->setTargetCounts(dict_->getCounts(entry_type::word), dict_);
   }
+  
+  std::cout << "init : " << args->name << std::endl;
   
   start = clock();
   tokenCount = 0;
@@ -439,44 +450,35 @@ void train(int argc, char** argv) {
 }
 
 void trainBilingual(int argc, char** argv) {
-  std::cout << "--\nCreating input matrix" << std::endl;
+  std::cout << "--\nParsing arguments" << std::endl;
   std::shared_ptr<Args> args = std::make_shared<Args>();
   args->parseArgs(argc, argv);
+
+  std::cout << "--\nCreating input matrix" << std::endl;
   std::shared_ptr<Dictionary> dict = std::make_shared<Dictionary>(args);
   std::shared_ptr<Matrix> input = std::make_shared<Matrix>(dict->nwords()+args->bucket, args->dim);
   input->uniform(1.0 / args->dim);
-  
-//  std::shared_ptr<Args> args_sup = std::make_shared<Args>(*args);
+
 //  std::shared_ptr<Args> args_mono1 = std::make_shared<Args>(*args);
 //  std::shared_ptr<Args> args_mono2 = std::make_shared<Args>(*args);
-  std::shared_ptr<Args> args_par   = std::make_shared<Args>(*args);
+  std::shared_ptr<Args> args_par = std::make_shared<Args>(*args);
   
 //  args_sup->toggleSup(); // Is this right? Means it reads all inputs...
 //  args_mono1->toggleMono(1);
 //  args_mono2->toggleMono(2);
   args_par->togglePar();
   
-  // Read the data a second time (gross)
-//  std::cout << "--\nSupervised dict" << std::endl;
-//  std::shared_ptr<Dictionary> dict_sup = std::make_shared<Dictionary>(args_sup);
-  
-  // !! Big problem caused by different vocabs
-//  std::cout << "--\nMonolingual(1) dict" << std::endl;
-//  std::shared_ptr<Dictionary> dict_mono1 = std::make_shared<Dictionary>(args_mono1);
-//  std::cout << "--\nMonolingual(2) dict" << std::endl;
-//  std::shared_ptr<Dictionary> dict_mono2 = std::make_shared<Dictionary>(args_mono2);
-//  std::cout << "--\nParallel dict" << std::endl;
-//  std::shared_ptr<Dictionary> dict_par = std::make_shared<Dictionary>(args_par);
-
   FastText ft_sup, ft_mono1, ft_mono2, ft_par;
-//  ft_sup.setup(args_sup, dict_sup, input);
+//  ft_sup.setup(args_sup, dict, input);
 //  ft_mono1.setup(args_mono1, dict, input);
 //  ft_mono2.setup(args_mono2, dict, input);
   ft_par.setup(args_par, dict, input);
-
-//  std::vector<FastText*> models = {&ft_sup, &ft_mono1, &ft_mono2, &ft_par};
+  
+//  std::vector<FastText*> models = {&ft_mono1, &ft_mono2};
+//  std::vector<FastText*> models = {&ft_mono1, &ft_mono2, &ft_par};
   std::vector<FastText*> models = {&ft_par};
-  // Train model w/ the least progress
+  
+  // Train the model w/ the least progress
   real min_progress(0);
   while(min_progress < 1) {
     FastText* min_model_ = models[0];
@@ -490,12 +492,14 @@ void trainBilingual(int argc, char** argv) {
     min_model_->step();
     min_progress = min_progress_;
   }
-  
+
 //  ft_sup.close("-sup");
 //  ft_mono1.close("-mono1");
 //  ft_mono2.close("-mono2");
   ft_par.close("-par");
 }
+
+// Tested sup
 
 int main(int argc, char** argv) {
   utils::initTables();

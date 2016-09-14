@@ -18,6 +18,7 @@
 #include "args.h"
 #include "matrix.h"
 #include "vector.h"
+#include "dictionary.h"
 #include "real.h"
 
 struct Node {
@@ -41,9 +42,8 @@ class Model {
     int32_t osz_;
     real loss_;
     int64_t nexamples_;
-
-    static bool comparePairs(const std::pair<real, int32_t>&,
-                             const std::pair<real, int32_t>&);
+    
+    static bool comparePairs(const std::pair<real, int32_t>&, const std::pair<real, int32_t>&);
 
     std::vector<int32_t> negatives;
     size_t negpos;
@@ -52,30 +52,32 @@ class Model {
     std::vector<Node> tree;
 
     static const int32_t NEGATIVE_TABLE_SIZE = 10000000;
-
+    
+    std::shared_ptr<Dictionary> dict_;
+    
   public:
-    Model(std::shared_ptr<Matrix>, std::shared_ptr<Matrix>,
-          std::shared_ptr<Args>, int32_t);
-
+    Model(std::shared_ptr<Matrix>, std::shared_ptr<Matrix>, std::shared_ptr<Args>, int32_t);
+    
     real binaryLogistic(int32_t, bool, real);
     real negativeSampling(int32_t, real);
     real hierarchicalSoftmax(int32_t, real);
     real softmax(int32_t, real);
 
-    void predict(const std::vector<int32_t>&, int32_t,
-                 std::vector<std::pair<real, int32_t>>&);
+    void predict(const std::vector<int32_t>&, int32_t, std::vector<std::pair<real, int32_t>>&);
     void dfs(int32_t, int32_t, real, std::vector<std::pair<real, int32_t>>&);
     void findKBest(int32_t, std::vector<std::pair<real, int32_t>>&);
     void update(const std::vector<int32_t>&, int32_t, real);
     void computeHidden(const std::vector<int32_t>&);
     void computeOutputSoftmax();
 
-    void setTargetCounts(const std::vector<int64_t>&);
+    void setTargetCounts(const std::vector<int64_t>&, const std::shared_ptr<Dictionary>);
     void initTableNegatives(const std::vector<int64_t>&);
     int32_t getNegative(int32_t target);
     void buildTree(const std::vector<int64_t>&);
     real getLoss();
-
+    
+    bool compareLang(int32_t, int32_t, bool);
+    
     std::minstd_rand rng;
 };
 

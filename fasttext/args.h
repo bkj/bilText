@@ -21,6 +21,7 @@ class Args {
   public:
     Args();
     std::string input;
+    std::string name;
     
     // Bilingual
     std::string input_mono1;

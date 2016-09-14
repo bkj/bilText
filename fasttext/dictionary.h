@@ -75,6 +75,7 @@ class Dictionary {
     std::vector<int64_t> getCounts(entry_type);
     void addNgrams(std::vector<int32_t>&, int32_t);
     int32_t getLine(std::istream&, std::vector<int32_t>&, std::vector<int32_t>&, model_name mname, std::minstd_rand&);
+    int32_t getLine2(std::istream&, std::vector<int32_t>&, std::vector<int32_t>&, model_name mname, real);
     void toggleWV(std::shared_ptr<Args>);
 };
 

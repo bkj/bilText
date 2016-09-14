@@ -15,6 +15,7 @@
 #include <iostream>
 
 Args::Args() {
+  name = "default_name";
   ws = 5;
   epoch = 5;
   neg = 5;
@@ -68,9 +69,10 @@ void Args::toggleSup() {
 }
 
 void Args::toggleMono(const int i) {
-  model = model_name::cbow;
+  model = model_name::sg;
   loss = loss_name::ns;
   lr = lr_wv;
+  name = std::to_string(i);
   
   input.clear();
   input_par1.clear();
@@ -90,10 +92,6 @@ void Args::togglePar() {
   input.clear();
   input_mono1.clear();
   input_mono2.clear();
-  
-  // Test
-//  input_par1.clear();
-//  input_par2.clear();
 }
 
 

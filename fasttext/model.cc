@@ -8,17 +8,12 @@
  */
 
 #include "model.h"
-
 #include <assert.h>
-
 #include <algorithm>
-
+#include <iostream>
 #include "utils.h"
 
-Model::Model(std::shared_ptr<Matrix> wi,
-             std::shared_ptr<Matrix> wo,
-             std::shared_ptr<Args> args,
-             int32_t seed)
+Model::Model(std::shared_ptr<Matrix> wi, std::shared_ptr<Matrix> wo, std::shared_ptr<Args> args, int32_t seed)
   : hidden_(args->dim), output_(wo->m_), grad_(args->dim), rng(seed)
 {
   wi_ = wi;
@@ -103,13 +98,11 @@ void Model::computeHidden(const std::vector<int32_t>& input) {
   hidden_.mul(1.0 / input.size());
 }
 
-bool Model::comparePairs(const std::pair<real, int32_t> &l,
-                         const std::pair<real, int32_t> &r) {
+bool Model::comparePairs(const std::pair<real, int32_t> &l, const std::pair<real, int32_t> &r) {
   return l.first > r.first;
 }
 
-void Model::predict(const std::vector<int32_t>& input, int32_t k,
-                    std::vector<std::pair<real, int32_t>>& heap) {
+void Model::predict(const std::vector<int32_t>& input, int32_t k, std::vector<std::pair<real, int32_t>>& heap) {
   assert(k > 0);
   heap.reserve(k + 1);
   computeHidden(input);
@@ -136,8 +129,7 @@ void Model::findKBest(int32_t k, std::vector<std::pair<real, int32_t>>& heap) {
   }
 }
 
-void Model::dfs(int32_t k, int32_t node, real score,
-                std::vector<std::pair<real, int32_t>>& heap) {
+void Model::dfs(int32_t k, int32_t node, real score, std::vector<std::pair<real, int32_t>>& heap) {
   if (heap.size() == k && score < heap.front().first) {
     return;
   }
@@ -184,8 +176,9 @@ void Model::update(const std::vector<int32_t>& input, int32_t target, real lr) {
   }
 }
 
-void Model::setTargetCounts(const std::vector<int64_t>& counts) {
+void Model::setTargetCounts(const std::vector<int64_t>& counts, const std::shared_ptr<Dictionary> dict) {
   assert(counts.size() == osz_);
+  dict_ = dict;
   if (args_->loss == loss_name::ns) {
     initTableNegatives(counts);
   }
@@ -208,12 +201,24 @@ void Model::initTableNegatives(const std::vector<int64_t>& counts) {
   std::shuffle(negatives.begin(), negatives.end(), rng);
 }
 
+bool Model::compareLang(int32_t a, int32_t b, bool check_equal) {
+  char aw = dict_->getWord(a).back();
+  char bw = dict_->getWord(b).back();
+  if(check_equal) {
+    return aw == bw;
+  } else {
+    return aw != bw;
+  }
+}
+
 int32_t Model::getNegative(int32_t target) {
   int32_t negative;
   do {
     negative = negatives[negpos];
     negpos = (negpos + 1) % negatives.size();
-  } while (target == negative);
+  } while ((target == negative) || (dict_->getWord(target).back() == dict_->getWord(negative).back()));
+  // Should replace this with a "language mask" : [s, t, s, t, ...] for speed
+//  std::cout << dict_->getWord(target) << " " << dict_->getWord(negative) << std::endl;
   return negative;
 }
 

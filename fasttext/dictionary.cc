@@ -282,7 +282,39 @@ int32_t Dictionary::getLine(std::istream& in, std::vector<int32_t>& words, std::
     entry_type type = getType(wid);
     ntokens++;
     if (type == entry_type::word) {
-      if(!discard(wid, mname, uniform(rng))) {
+      real u = uniform(rng);
+      if(!discard(wid, mname, u)) {
+        words.push_back(wid);
+      }
+    }
+    if (type == entry_type::label) {
+      labels.push_back(wid - nwords_);
+    }
+    if (words.size() > MAX_LINE_SIZE && mname != model_name::sup) {
+      break;
+    }
+  }
+  return ntokens;
+}
+
+int32_t Dictionary::getLine2(std::istream& in, std::vector<int32_t>& words, std::vector<int32_t>& labels, model_name mname, real u) {
+  std::string token;
+  int32_t ntokens = 0;
+  words.clear();
+  
+  labels.clear();
+  if (in.eof()) {
+    in.clear();
+    in.seekg(std::streampos(0));
+  }
+  while (readWord(in, token)) {
+    if (token == EOS) break;
+    int32_t wid = getId(token);
+    if (wid < 0) continue;
+    entry_type type = getType(wid);
+    ntokens++;
+    if (type == entry_type::word) {
+      if(!discard(wid, mname, u)) {
         words.push_back(wid);
       }
     }
