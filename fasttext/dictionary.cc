@@ -33,7 +33,11 @@ Dictionary::Dictionary(std::shared_ptr<Args> args) {
     word2int_[i] = -1;
   }
   
-  std::vector<std::string> possible_inputs = {args->input, args->input_mono1, args->input_mono2, args->input_par1, args->input_par2};
+  // Leads to reading data twice
+//  std::vector<std::string> possible_inputs = {args->input, args->input_mono1, args->input_mono2, args->input_par1, args->input_par2};
+  
+  std::vector<std::string> possible_inputs = {args->input, args->input_mono1, args->input_mono2};
+  
   readFromFile(possible_inputs);
 }
 

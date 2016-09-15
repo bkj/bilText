@@ -33,7 +33,6 @@ Args::Args() {
   thread = 1;
   
   lr = 0.01;
-  lr_wv = 0.05;
   lr_mono = 0.05;
   lr_par = 0.05;
   
@@ -93,13 +92,6 @@ void Args::togglePar() {
 
 void Args::parseArgs(int argc, char** argv) {
   std::string command(argv[1]);
-  if (command == "semisupervised") {
-    model = model_name::sup;
-    loss = loss_name::softmax;
-    lr = 0.1;
-  } else if (command == "cbow") {
-    model = model_name::cbow;
-  }
   
   int ai = 2;
   while (ai < argc) {

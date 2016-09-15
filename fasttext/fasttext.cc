@@ -298,46 +298,15 @@ void FastText::skipgram(Model& model, real lr, const std::vector<int32_t>& line)
   }
 }
 
-// This is "transgram" -- but implemented w/ `cbow` rather than `skipgram`
-void FastText::bilingual_cbow(Model& model, real lr, const std::vector<int32_t>& line1, const std::vector<int32_t>& line2) {
-  // !! Use learning rate adjustment?
-  
-  // "The learning rate is the global learning rate
-  //   (since all the skip-grams are synchronized, they all share the same learning
-  //   rate) multiplied by window_size / size_of_sentence(y) (the longer the sentence
-  //   y, the less it should influence the words of x)"
-  
-  std::vector<int32_t> bow;
-  std::uniform_int_distribution<> uniform(1, args_->ws);
-  for (int32_t w = 0; w < line1.size(); w++) {
-    bow.clear();
-    for (int32_t i = 0; i < line2.size(); i++) {
-      const std::vector<int32_t>& ngrams = dict_->getNgrams(line2[i]);
-      bow.insert(bow.end(), ngrams.cbegin(), ngrams.cend());
-    }
-    
-    model.update(bow, line1[w], lr);
-  }
-}
-
-void FastText::bilingual_skipgram(Model& model, real lr, const std::vector<int32_t>& line1, const std::vector<int32_t>& line2) {
-  
-  //  real lr_bil1 = lr * (args_->ws) / line1.size();
-  //  real lr_bil2 = lr * (args_->ws) / line2.size();
+void FastText::bilingual_skipgram(Model& model, real lr, const std::vector<int32_t>& x, const std::vector<int32_t>& y) {
+//  real lr_x = lr * (args_->ws) / y.size();
+  real lr_x = lr;
   
   // Forwards
-  for (int32_t w = 0; w < line1.size(); w++) {
-    const std::vector<int32_t>& ngrams1 = dict_->getNgrams(line1[w]);
-    for (int32_t i = 0; i < line2.size(); i++) {
-      model.update(ngrams1, line2[i], lr);
-    }
-  }
-
-  // Backwards
-  for (int32_t w = 0; w < line2.size(); w++) {
-    const std::vector<int32_t>& ngrams2 = dict_->getNgrams(line2[w]);
-    for (int32_t i = 0; i < line1.size(); i++) {
-      model.update(ngrams2, line1[i], lr);
+  for (int32_t w = 0; w < x.size(); w++) {
+    const std::vector<int32_t>& ngrams_x = dict_->getNgrams(x[w]);
+    for (int32_t i = 0; i < y.size(); i++) {
+      model.update(ngrams_x, y[i], lr_x);
     }
   }
 }
@@ -361,9 +330,11 @@ void FastText::step() {
     skipgram(*model_, lr, line1);
   } else if (args_->model == model_name::bil) {
     tokenCount += dict_->getLine2(ifs[1], line2, labels, args_->model, u);
-    skipgram(*model_, lr, line1);
-    skipgram(*model_, lr, line2);
+
+//    skipgram(*model_, lr, line1);
+//    skipgram(*model_, lr, line2);
     bilingual_skipgram(*model_, lr, line1, line2);
+    bilingual_skipgram(*model_, lr, line2, line1);
   }
 
   if (tokenCount % args_->lrUpdateRate == 0) {
@@ -373,30 +344,24 @@ void FastText::step() {
   }
 }
 
-void FastText::setup(std::shared_ptr<Args> args, std::shared_ptr<Dictionary> dict, std::shared_ptr<Matrix> input) {
+void FastText::setup(std::shared_ptr<Args> args, std::shared_ptr<Dictionary> dict, std::shared_ptr<Matrix> input,
+                     std::shared_ptr<Matrix> output) {
+  
+  std::cout << "setup : " << args->name << std::endl;
+  
+  start = clock();
+  tokenCount = 0;
   args_ = args;
   dict_ = dict;
   input_ = input;
-
-  if (args_->model == model_name::sup) {
-      output_ = std::make_shared<Matrix>(dict_->nlabels(), args_->dim);
-  } else {
-      output_ = std::make_shared<Matrix>(dict_->nwords(), args_->dim);
-  }
-  output_->zero();
+  output_ = output;
   
-  // Setup thread
   model_ = std::make_shared<Model>(input_, output_, args_, 0);
   if (args_->model == model_name::sup) {
     model_->setTargetCounts(dict_->getCounts(entry_type::label), dict_);
   } else {
     model_->setTargetCounts(dict_->getCounts(entry_type::word), dict_);
   }
-  
-  std::cout << "setup : " << args->name << std::endl;
-  
-  start = clock();
-  tokenCount = 0;
   
   std::vector<std::string> possible_inputs = {args->input, args->input_mono1, args->input_mono2, args->input_par1, args->input_par2};
   for(auto possible_input : possible_inputs) {
@@ -431,88 +396,6 @@ void lockTrain(std::vector<FastText*> models, real progress) {
   }
 }
 
-//void train(int argc, char** argv) {
-//  std::shared_ptr<Args> args = std::make_shared<Args>();
-//  args->parseArgs(argc, argv);
-//  std::shared_ptr<Dictionary> dict = std::make_shared<Dictionary>(args);
-//  std::shared_ptr<Matrix> input = std::make_shared<Matrix>(dict->nwords()+args->bucket, args->dim);
-//  input->uniform(1.0 / args->dim);
-//  
-//  // WV args -- have to read dict twice ATM (gross)
-//  std::shared_ptr<Args> args_wv = std::make_shared<Args>(*args);
-//  args_wv->toggleWV();
-//  std::shared_ptr<Dictionary> dict_wv = std::make_shared<Dictionary>(args_wv);
-//  
-//  FastText ft_sup, ft_wv;
-//  ft_sup.setup(args, dict, input);
-//  ft_wv.setup(args_wv, dict_wv, input);
-//  
-//  const int64_t ntokens = dict->ntokens();
-//  const int64_t ntokens_wv = dict_wv->ntokens();
-//  assert(ntokens == ntokens_wv);
-//  
-//  // Single threaded ATM (gross)
-//  while (ft_sup.tokenCount < args->epoch * ntokens) {
-//    ft_sup.step();
-//    ft_wv.step();
-//  }
-//  ft_sup.close("-sup");
-//  ft_wv.close("-wv");
-//}
-
-void trainBilingual(int argc, char** argv) {
-  FastText ft_sup, ft_par;
-  
-  std::cout << "--\nParsing arguments" << std::endl;
-  std::shared_ptr<Args> args = std::make_shared<Args>();
-  args->parseArgs(argc, argv);
-
-  std::cout << "--\nCreating input matrix" << std::endl;
-  std::shared_ptr<Dictionary> dict = std::make_shared<Dictionary>(args);
-  std::shared_ptr<Matrix> input = std::make_shared<Matrix>(dict->nwords()+args->bucket, args->dim);
-  input->uniform(1.0 / args->dim);
-  
-  std::shared_ptr<Args> args_sup = std::make_shared<Args>(*args);
-  args_sup->toggleSup();
-  ft_sup.setup(args_sup, dict, input);
-  
-  std::shared_ptr<Args> args_par = std::make_shared<Args>(*args);
-  args_par->togglePar();
-  ft_par.setup(args_par, dict, input);
-  
-  // Train
-  real progress(0);
-  std::vector<FastText*> models = {&ft_sup, &ft_par};
-  lockTrain(models, progress);
-  ft_sup.close("-sup");
-  ft_par.close("-par");
-}
-
-void trainBilingualUnsupervised(int argc, char** argv) {
-  FastText ft_par, ft_mono1, ft_mono2;
-  
-  std::cout << "--\nParsing arguments" << std::endl;
-  std::shared_ptr<Args> args = std::make_shared<Args>();
-  args->parseArgs(argc, argv);
-  
-  std::cout << "--\nCreating input matrix" << std::endl;
-  std::shared_ptr<Dictionary> dict = std::make_shared<Dictionary>(args);
-  std::shared_ptr<Matrix> input = std::make_shared<Matrix>(dict->nwords()+args->bucket, args->dim);
-  input->uniform(1.0 / args->dim);
-  
-  std::shared_ptr<Args> args_par = std::make_shared<Args>(*args);
-  args_par->togglePar();
-  ft_par.setup(args_par, dict, input);
-
-  // Train
-  std::vector<FastText*> models = {&ft_par};
-  while(ft_par.progress < 1) {
-    ft_par.step();
-  }
-  
-  ft_par.close("-par-u");
-}
-
 void trainBilingualUnsupervisedMono(int argc, char** argv) {
   FastText ft_par, ft_mono1, ft_mono2;
   
@@ -525,23 +408,27 @@ void trainBilingualUnsupervisedMono(int argc, char** argv) {
   std::shared_ptr<Matrix> input = std::make_shared<Matrix>(dict->nwords()+args->bucket, args->dim);
   input->uniform(1.0 / args->dim);
   
+  std::shared_ptr<Matrix> output_word;
+  output_word = std::make_shared<Matrix>(dict->nwords(), args->dim);
+  output_word->zero();
+
   std::shared_ptr<Args> args_par = std::make_shared<Args>(*args);
   args_par->togglePar();
-  ft_par.setup(args_par, dict, input);
+  ft_par.setup(args_par, dict, input, output_word);
   
   std::shared_ptr<Args> args_mono1 = std::make_shared<Args>(*args);
   args_mono1->toggleMono(1);
-  ft_mono1.setup(args_mono1, dict, input);
+  ft_mono1.setup(args_mono1, dict, input, output_word);
   
   std::shared_ptr<Args> args_mono2 = std::make_shared<Args>(*args);
   args_mono2->toggleMono(2);
-  ft_mono2.setup(args_mono2, dict, input);
+  ft_mono2.setup(args_mono2, dict, input, output_word);
   
   // Train
   real progress(0);
   std::vector<FastText*> models = {&ft_par, &ft_mono1, &ft_mono2};
   lockTrain(models, progress);
-  ft_par.close("-par-um");
+  ft_par.close("");
 }
 
 void trainBilingualMono(int argc, char** argv) {
@@ -556,21 +443,24 @@ void trainBilingualMono(int argc, char** argv) {
   std::shared_ptr<Matrix> input = std::make_shared<Matrix>(dict->nwords()+args->bucket, args->dim);
   input->uniform(1.0 / args->dim);
   
+  std::shared_ptr<Matrix> output_word;
+  output_word = std::make_shared<Matrix>(dict->nwords(), args->dim);
+  output_word->zero();
+
   std::shared_ptr<Args> args_mono1 = std::make_shared<Args>(*args);
   args_mono1->toggleMono(1);
-  ft_mono1.setup(args_mono1, dict, input);
+  ft_mono1.setup(args_mono1, dict, input, output_word);
   
   std::shared_ptr<Args> args_mono2 = std::make_shared<Args>(*args);
   args_mono2->toggleMono(2);
-  ft_mono2.setup(args_mono2, dict, input);
+  ft_mono2.setup(args_mono2, dict, input, output_word);
   
   // Train
   real progress(0);
   std::vector<FastText*> models = {&ft_mono1, &ft_mono2};
   lockTrain(models, progress);
-  ft_mono1.close("-par-m");
+  ft_mono1.close("");
 }
-// Tested sup
 
 int main(int argc, char** argv) {
 //  srand(time(NULL));
@@ -581,16 +471,11 @@ int main(int argc, char** argv) {
     exit(EXIT_FAILURE);
   }
   std::string command(argv[1]);
-  if (command == "semisupervised") {
-//    train(argc, argv);
-  } else if (command == "bilingual") {
-    trainBilingual(argc, argv);
-  } else if (command == "bilingual-u") {
-    trainBilingualUnsupervised(argc, argv);
-  } else if (command == "bilingual-um") {
+  if (command == "bilingual-um") {
     trainBilingualUnsupervisedMono(argc, argv);
   } else if (command == "bilingual-m") {
     trainBilingualMono(argc, argv);
+  
   } else if (command == "test") {
     test(argc, argv);
   } else if (command == "print-vectors") {
