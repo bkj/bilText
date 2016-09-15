@@ -179,12 +179,10 @@ void Model::update(const std::vector<int32_t>& input, int32_t target, real lr) {
 void Model::setTargetCounts(const std::vector<int64_t>& counts, const std::shared_ptr<Dictionary> dict) {
   assert(counts.size() == osz_);
   dict_ = dict;
-
-  // !! lang_mask_ instead of using dict_->getWord repeatedly
-//  std::vector<dict_->nwords(), char> lang_mask_[];
-//  for(int32_t i = 0; i < dict_->nwords(); i++) {
-//    lang_mask_.push_back(dict_->getWord(i).back());
-//  }
+  
+  for(int32_t i = 0; i < dict_->nwords(); i++) {
+    lang_mask_.push_back(dict_->getWord(i).back());
+  }
   
   if (args_->loss == loss_name::ns) {
     initTableNegatives(counts);
@@ -208,24 +206,14 @@ void Model::initTableNegatives(const std::vector<int64_t>& counts) {
   std::shuffle(negatives.begin(), negatives.end(), rng);
 }
 
-bool Model::compareLang(int32_t a, int32_t b, bool check_equal) {
-  char aw = dict_->getWord(a).back();
-  char bw = dict_->getWord(b).back();
-  if(check_equal) {
-    return aw == bw;
-  } else {
-    return aw != bw;
-  }
-}
-
 int32_t Model::getNegative(int32_t target) {
   int32_t negative;
   do {
     negative = negatives[negpos];
     negpos = (negpos + 1) % negatives.size();
-  } while ((target == negative) || (dict_->getWord(target).back() != dict_->getWord(negative).back())); // (*)
-  // Should replace this with a "language mask" : [s, t, s, t, ...] for speed
-//  std::cout << dict_->getWord(target) << " " << dict_->getWord(negative) << std::endl;
+  } while ((target == negative) || (lang_mask_[target] != lang_mask_[negative])); // New
+//  } while ((target == negative) || (dict_->getWord(target).back() != dict_->getWord(negative).back())); // Old and slower
+  
   return negative;
 }
 

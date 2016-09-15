@@ -34,6 +34,7 @@ class Model {
     std::shared_ptr<Matrix> wi_;
     std::shared_ptr<Matrix> wo_;
     std::shared_ptr<Args> args_;
+    std::vector<char> lang_mask_;
     Vector hidden_;
     Vector output_;
     Vector grad_;

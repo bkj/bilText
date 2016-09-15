@@ -44,11 +44,11 @@ Args::Args() {
 }
 
 // Semisupervised
-void Args::toggleWV() {
-  model = model_name::cbow;
-  loss = loss_name::ns;
-  lr = lr_wv;
-}
+//void Args::toggleWV() {
+//  model = model_name::cbow;
+//  loss = loss_name::ns;
+//  lr = lr_wv;
+//}
 
 // Bilingual
 void Args::toggleSup() {
@@ -64,7 +64,7 @@ void Args::toggleMono(int i) {
   name = "mono_model__" + std::to_string(i);
   model = model_name::sg;
   loss = loss_name::ns;
-  lr = lr_wv;
+  lr = lr_mono;
   
   input.clear();
   input_par1.clear();
@@ -83,7 +83,7 @@ void Args::togglePar() {
   name = "par_model";
   model = model_name::bil;
   loss = loss_name::ns;
-  lr = lr_wv;
+  lr = lr_par;
   
   input.clear();
   input_mono1.clear();
@@ -112,10 +112,10 @@ void Args::parseArgs(int argc, char** argv) {
       std::cout << "Here is the help! Usage:" << std::endl;
       printHelp();
       exit(EXIT_FAILURE);
+
+    // Custom args
     } else if (strcmp(argv[ai], "-input") == 0) {
       input = std::string(argv[ai + 1]);
-
-    // Bilingual
     } else if (strcmp(argv[ai], "-input-par1") == 0) {
       input_par1 = std::string(argv[ai + 1]);
     } else if (strcmp(argv[ai], "-input-par2") == 0) {
@@ -124,15 +124,19 @@ void Args::parseArgs(int argc, char** argv) {
       input_mono1 = std::string(argv[ai + 1]);
     } else if (strcmp(argv[ai], "-input-mono2") == 0) {
       input_mono2 = std::string(argv[ai + 1]);
-
-    } else if (strcmp(argv[ai], "-test") == 0) {
-      test = std::string(argv[ai + 1]);
-    } else if (strcmp(argv[ai], "-output") == 0) {
-      output = std::string(argv[ai + 1]);
     } else if (strcmp(argv[ai], "-lr") == 0) {
       lr = atof(argv[ai + 1]);
     } else if (strcmp(argv[ai], "-lr_wv") == 0) {
       lr_wv = atof(argv[ai + 1]);
+    } else if (strcmp(argv[ai], "-lr_par") == 0) {
+      lr_par = atof(argv[ai + 1]);
+    } else if (strcmp(argv[ai], "-lr_mono") == 0) {
+      lr_mono = atof(argv[ai + 1]);
+    
+    } else if (strcmp(argv[ai], "-test") == 0) {
+      test = std::string(argv[ai + 1]);
+    } else if (strcmp(argv[ai], "-output") == 0) {
+      output = std::string(argv[ai + 1]);
     } else if (strcmp(argv[ai], "-lrUpdateRate") == 0) {
       lrUpdateRate = atoi(argv[ai + 1]);
     } else if (strcmp(argv[ai], "-dim") == 0) {

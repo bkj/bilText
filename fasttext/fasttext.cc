@@ -385,6 +385,7 @@ void FastText::setup(std::shared_ptr<Args> args, std::shared_ptr<Dictionary> dic
   }
   output_->zero();
   
+  // Setup thread
   model_ = std::make_shared<Model>(input_, output_, args_, 0);
   if (args_->model == model_name::sup) {
     model_->setTargetCounts(dict_->getCounts(entry_type::label), dict_);
@@ -392,7 +393,7 @@ void FastText::setup(std::shared_ptr<Args> args, std::shared_ptr<Dictionary> dic
     model_->setTargetCounts(dict_->getCounts(entry_type::word), dict_);
   }
   
-  std::cout << "init : " << args->name << std::endl;
+  std::cout << "setup : " << args->name << std::endl;
   
   start = clock();
   tokenCount = 0;
@@ -543,6 +544,32 @@ void trainBilingualUnsupervisedMono(int argc, char** argv) {
   ft_par.close("-par-um");
 }
 
+void trainBilingualMono(int argc, char** argv) {
+  FastText ft_par, ft_mono1, ft_mono2;
+  
+  std::cout << "--\nParsing arguments" << std::endl;
+  std::shared_ptr<Args> args = std::make_shared<Args>();
+  args->parseArgs(argc, argv);
+  
+  std::cout << "--\nCreating input matrix" << std::endl;
+  std::shared_ptr<Dictionary> dict = std::make_shared<Dictionary>(args);
+  std::shared_ptr<Matrix> input = std::make_shared<Matrix>(dict->nwords()+args->bucket, args->dim);
+  input->uniform(1.0 / args->dim);
+  
+  std::shared_ptr<Args> args_mono1 = std::make_shared<Args>(*args);
+  args_mono1->toggleMono(1);
+  ft_mono1.setup(args_mono1, dict, input);
+  
+  std::shared_ptr<Args> args_mono2 = std::make_shared<Args>(*args);
+  args_mono2->toggleMono(2);
+  ft_mono2.setup(args_mono2, dict, input);
+  
+  // Train
+  real progress(0);
+  std::vector<FastText*> models = {&ft_mono1, &ft_mono2};
+  lockTrain(models, progress);
+  ft_mono1.close("-par-m");
+}
 // Tested sup
 
 int main(int argc, char** argv) {
@@ -562,6 +589,8 @@ int main(int argc, char** argv) {
     trainBilingualUnsupervised(argc, argv);
   } else if (command == "bilingual-um") {
     trainBilingualUnsupervisedMono(argc, argv);
+  } else if (command == "bilingual-m") {
+    trainBilingualMono(argc, argv);
   } else if (command == "test") {
     test(argc, argv);
   } else if (command == "print-vectors") {
