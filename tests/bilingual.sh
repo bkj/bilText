@@ -146,28 +146,63 @@ plot(x[,2], x[,3], cex=0.2, col = 1 + grepl('_s$', x[,1]))
 
 
 # --
-# Train two separate skipgrams
-# They shouldn't really repel each other
+# Parallel modeling
+tail -n 5000 ~/projects/clf-test/data/ft-train-s.txt > s-5000-2.txt
+tail -n 5000 ~/projects/clf-test/data/ft-train-t.txt > t-5000-2.txt
 
 ./make.sh
 
-time fasttext bilingual \
+# -- 
+# Grid
+
+./make.sh
+
+cat s-5000.txt | sed 's/__label__[^ ]* *//' > s-5000-u.txt
+cat t-5000.txt | sed 's/__label__[^ ]* *//' > t-5000-u.txt
+
+# Small amount of target training data
+time fasttext-orig skipgram \
+    -input t-5000-u.txt \
+    -output ./models/orig \
+    -dim 10 -lr 0.5
+
+python ~/projects/clf-test/vec-logreg.py \
+    ./models/orig.vec \
+    t-100.txt \
+    t-5000-2.txt
+
+# 0.81
+
+# Traditional transgram
+time fasttext bilingual-u \
     -input ./empty \
-    -input-par2 s-5000.txt \
-    -input-par1 t-5000.txt \
+    -input-par1 s-100-u.txt \
+    -input-par2 t-100-u.txt \
     -output ./models/dev \
-    -dim 2 -epoch 5
+    -dim 10 -lr_wv 0.5
 
+python ~/projects/clf-test/vec-logreg.py \
+    ./models/dev-par-u.vec \
+    s-5000.txt \
+    t-5000-2.txt
 
+# 0.70
 
+# Supervised transgram
+time fasttext bilingual \
+    -input s-5000.txt \
+    -input-par1 s-100-u.txt \
+    -input-par2 t-100-u.txt \
+    -output ./models/dev \
+    -dim 10 -lr 0.5 -lr_wv 0.01 # Optimised (sortof)
 
+fasttext test ./models/dev-sup.bin t-5000-2.txt
 
+python ~/projects/clf-test/vec-logreg.py \
+    ./models/dev-sup.vec \
+    s-5000.txt \
+    t-5000-2.txt
 
-
-
-
-
-
-
+# 0.78
 
 

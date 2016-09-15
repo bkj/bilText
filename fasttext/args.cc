@@ -39,17 +39,6 @@ Args::Args() {
   maxn = 0;
 }
 
-// --
-// fasttext semisupervised -input ./data/ft-semi.txt -output ./models/semi -dim 10
-// 0.1, 0.01 -> 0.848
-// 0.1, 0.011 -> 0.849
-// 0.1, 0.013 -> 0.850
-// 0.1, 0.015 -> 0.851
-// 0.1, 0.02 -> 0.852
-// 0.1, 0.05 -> 0.853
-// 0.1, 0.075 -> 0.853
-// 0.2, 0.075 -> 0.856
-
 // Semisupervised
 void Args::toggleWV() {
   model = model_name::cbow;
@@ -59,49 +48,27 @@ void Args::toggleWV() {
 
 // Bilingual
 void Args::toggleSup() {
+  name = "sup_model";
   model = model_name::sup;
   loss = loss_name::softmax;
   
-  input_par1.clear();
-  input_par2.clear();
-  input_mono2.clear();
-  input_mono1.clear();
-}
-
-void Args::toggleMono(const int i) {
-  model = model_name::sg;
-  loss = loss_name::ns;
-  lr = lr_wv;
-  name = std::to_string(i);
-  
-  input.clear();
-  input_par1.clear();
-  input_par2.clear();
-  if (i == 1) {
-    input_mono2.clear();
-  } else if (i == 2) {
-    input_mono1.clear();
-  }
+//  input_par1.clear();
+//  input_par2.clear();
 }
 
 void Args::togglePar() {
+  name = "par_model";
   model = model_name::bil;
   loss = loss_name::ns;
   lr = lr_wv; // Is this appropriate?
-
+  
   input.clear();
-  input_mono1.clear();
-  input_mono2.clear();
 }
 
 
 void Args::parseArgs(int argc, char** argv) {
   std::string command(argv[1]);
   if (command == "semisupervised") {
-    model = model_name::sup;
-    loss = loss_name::softmax;
-    lr = 0.1;
-  } else if (command == "bilingual") {
     model = model_name::sup;
     loss = loss_name::softmax;
     lr = 0.1;
@@ -124,10 +91,6 @@ void Args::parseArgs(int argc, char** argv) {
       input = std::string(argv[ai + 1]);
 
     // Bilingual
-    } else if (strcmp(argv[ai], "-input-mono1") == 0) {
-      input_mono1 = std::string(argv[ai + 1]);
-    } else if (strcmp(argv[ai], "-input-mono2") == 0) {
-      input_mono2 = std::string(argv[ai + 1]);
     } else if (strcmp(argv[ai], "-input-par1") == 0) {
       input_par1 = std::string(argv[ai + 1]);
     } else if (strcmp(argv[ai], "-input-par2") == 0) {
@@ -206,6 +169,7 @@ void Args::printHelp() {
     << "  -output       output file path\n\n"
     << "The following arguments are optional:\n"
     << "  -lr           learning rate [" << lr << "]\n"
+    << "  -lr_wv        learning rate (word vectors) [" << lr_wv << "]\n"
     << "  -lrUpdateRate change the rate of updates for the learning rate [" << lrUpdateRate << "]\n"
     << "  -dim          size of word vectors [" << dim << "]\n"
     << "  -ws           size of the context window [" << ws << "]\n"
