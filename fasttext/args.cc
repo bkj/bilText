@@ -31,8 +31,12 @@ Args::Args() {
 
   // Customized
   thread = 1;
+  
   lr = 0.01;
   lr_wv = 0.05;
+  lr_mono = 0.05;
+  lr_par = 0.05;
+  
   dim = 1;
   minCount = 1;
   minn = 0;
@@ -56,13 +60,34 @@ void Args::toggleSup() {
 //  input_par2.clear();
 }
 
+void Args::toggleMono(int i) {
+  name = "mono_model__" + std::to_string(i);
+  model = model_name::sg;
+  loss = loss_name::ns;
+  lr = lr_wv;
+  
+  input.clear();
+  input_par1.clear();
+  input_par2.clear();
+  if(i == 1) {
+    input_mono2.clear();
+  } else if(i == 2) {
+    input_mono1.clear();
+  } else {
+    std::cout << "!! unknown option in toggleMono" << std::endl;
+  }
+}
+
+
 void Args::togglePar() {
   name = "par_model";
   model = model_name::bil;
   loss = loss_name::ns;
-  lr = lr_wv; // Is this appropriate?
+  lr = lr_wv;
   
   input.clear();
+  input_mono1.clear();
+  input_mono2.clear();
 }
 
 
@@ -95,6 +120,10 @@ void Args::parseArgs(int argc, char** argv) {
       input_par1 = std::string(argv[ai + 1]);
     } else if (strcmp(argv[ai], "-input-par2") == 0) {
       input_par2 = std::string(argv[ai + 1]);
+    } else if (strcmp(argv[ai], "-input-mono1") == 0) {
+      input_mono1 = std::string(argv[ai + 1]);
+    } else if (strcmp(argv[ai], "-input-mono2") == 0) {
+      input_mono2 = std::string(argv[ai + 1]);
 
     } else if (strcmp(argv[ai], "-test") == 0) {
       test = std::string(argv[ai + 1]);

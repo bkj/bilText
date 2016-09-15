@@ -179,6 +179,13 @@ void Model::update(const std::vector<int32_t>& input, int32_t target, real lr) {
 void Model::setTargetCounts(const std::vector<int64_t>& counts, const std::shared_ptr<Dictionary> dict) {
   assert(counts.size() == osz_);
   dict_ = dict;
+
+  // !! lang_mask_ instead of using dict_->getWord repeatedly
+//  std::vector<dict_->nwords(), char> lang_mask_[];
+//  for(int32_t i = 0; i < dict_->nwords(); i++) {
+//    lang_mask_.push_back(dict_->getWord(i).back());
+//  }
+  
   if (args_->loss == loss_name::ns) {
     initTableNegatives(counts);
   }

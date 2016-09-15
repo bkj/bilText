@@ -33,6 +33,9 @@ class Args {
     std::string output;
     double lr;
     double lr_wv;
+    double lr_mono;
+    double lr_par;
+    
     int lrUpdateRate;
     int dim;
     int ws;
