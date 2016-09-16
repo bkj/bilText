@@ -313,21 +313,24 @@ void FastText::bilingual_skipgram(Model& model, real lr, const std::vector<int32
 
 FastText::FastText(std::shared_ptr<Args> args, std::shared_ptr<Dictionary> dict, std::shared_ptr<Matrix> input,
                      std::shared_ptr<Matrix> output, int32_t threadId) {
+  
+  // Set attributes
   start = clock();
   threadId_ = threadId;
-  
   args_ = args;
   dict_ = dict;
   input_ = input;
   output_ = output;
   
-  model_ = std::make_shared<Model>(input_, output_, args_, 0);
+  // Define model
+  model_ = std::make_shared<Model>(input_, output_, args_, threadId);
   if (args_->model == model_name::sup) {
     model_->setTargetCounts(dict_->getCounts(entry_type::label), dict_);
   } else {
     model_->setTargetCounts(dict_->getCounts(entry_type::word), dict_);
   }
   
+  // IO streams
   std::vector<std::string> possible_inputs = {args->input, args->input_mono1, args->input_mono2, args->input_par1, args->input_par2};
   for(auto possible_input : possible_inputs) {
     if(!possible_input.empty()) {
@@ -443,7 +446,7 @@ void trainBilingualUnsupervisedMonoThread(int argc, char** argv) {
   args_mono2->toggleMono(2);
   
   std::vector<std::thread> threads;
-  for(int32_t threadId = 0; threadId < 5; threadId++) {
+  for(int32_t threadId = 0; threadId < args->thread; threadId++) {
     std::cout << "spawning thread : " << threadId << std::endl;
     threads.push_back(std::thread([=]() {
       FastText ft_par{args_par, dict, input, output_word, threadId};
