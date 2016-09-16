@@ -20,6 +20,7 @@
 #include <string>
 #include <vector>
 #include <algorithm>
+#include <limits>
 
 
 void printUsage() {
@@ -252,6 +253,13 @@ void FastText::predict(const std::string& filename, int32_t k, bool print_prob) 
   ifs.close();
 }
 
+void FastText::close(std::string suffix) {
+  for(int i = 0; i < ifs.size(); i++) { ifs[i].close(); }
+  model_ = std::make_shared<Model>(input_, output_, args_, 0);
+  saveModel(suffix);
+  saveVectors(suffix);
+}
+
 // --------
 // vv Train
 
@@ -303,6 +311,34 @@ void FastText::bilingual_skipgram(Model& model, real lr, const std::vector<int32
   }
 }
 
+FastText::FastText(std::shared_ptr<Args> args, std::shared_ptr<Dictionary> dict, std::shared_ptr<Matrix> input,
+                     std::shared_ptr<Matrix> output, int32_t threadId) {
+  start = clock();
+  threadId_ = threadId;
+  
+  args_ = args;
+  dict_ = dict;
+  input_ = input;
+  output_ = output;
+  
+  model_ = std::make_shared<Model>(input_, output_, args_, 0);
+  if (args_->model == model_name::sup) {
+    model_->setTargetCounts(dict_->getCounts(entry_type::label), dict_);
+  } else {
+    model_->setTargetCounts(dict_->getCounts(entry_type::word), dict_);
+  }
+  
+  std::vector<std::string> possible_inputs = {args->input, args->input_mono1, args->input_mono2, args->input_par1, args->input_par2};
+  for(auto possible_input : possible_inputs) {
+    if(!possible_input.empty()) {
+      ifs.push_back(std::ifstream(possible_input));
+      for (int i = 0; i < (threadId * 10000); ++i) {
+        ifs.back().ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+      }
+    }
+  }
+}
+
 void FastText::step() {
   std::vector<int32_t> line1, line2, labels;
   
@@ -325,43 +361,12 @@ void FastText::step() {
     bilingual_skipgram(*model_, lr, line1, line2);
     bilingual_skipgram(*model_, lr, line2, line1);
   }
-
-  if (tokenCount % args_->lrUpdateRate == 0) {
+  
+  if ((tokenCount % args_->lrUpdateRate == 0) && (threadId_ == 0)) {
     if (args_->verbose > 1) {
       printInfo(progress, model_->getLoss());
     }
   }
-}
-
-FastText::FastText(std::shared_ptr<Args> args, std::shared_ptr<Dictionary> dict, std::shared_ptr<Matrix> input,
-                     std::shared_ptr<Matrix> output, int32_t threadId) {
-  start = clock();
-  args_ = args;
-  dict_ = dict;
-  input_ = input;
-  output_ = output;
-  
-  model_ = std::make_shared<Model>(input_, output_, args_, 0);
-  if (args_->model == model_name::sup) {
-    model_->setTargetCounts(dict_->getCounts(entry_type::label), dict_);
-  } else {
-    model_->setTargetCounts(dict_->getCounts(entry_type::word), dict_);
-  }
-  
-  std::vector<std::string> possible_inputs = {args->input, args->input_mono1, args->input_mono2, args->input_par1, args->input_par2};
-  for(auto possible_input : possible_inputs) {
-    if(!possible_input.empty()) {
-      ifs.push_back(std::ifstream(possible_input));
-      utils::seek(ifs.back(), threadId * utils::size(ifs.back()) / 5);
-    }
-  }
-}
-
-void FastText::close(std::string suffix) {
-  for(int i = 0; i < ifs.size(); i++) { ifs[i].close(); }
-  model_ = std::make_shared<Model>(input_, output_, args_, 0);
-  saveModel(suffix);
-  saveVectors(suffix);
 }
 
 void lockTrain(std::vector<FastText*> models, real progress) {
@@ -380,6 +385,41 @@ void lockTrain(std::vector<FastText*> models, real progress) {
 }
 
 void trainBilingualUnsupervisedMono(int argc, char** argv) {
+  std::cout << "--\nParsing arguments" << std::endl;
+  std::shared_ptr<Args> args = std::make_shared<Args>();
+  args->parseArgs(argc, argv);
+  
+  std::cout << "--\nCreating input matrix" << std::endl;
+  std::shared_ptr<Dictionary> dict = std::make_shared<Dictionary>(args);
+  std::shared_ptr<Matrix> input = std::make_shared<Matrix>(dict->nwords()+args->bucket, args->dim);
+  input->uniform(1.0 / args->dim);
+  
+  std::shared_ptr<Matrix> output_word;
+  output_word = std::make_shared<Matrix>(dict->nwords(), args->dim);
+  output_word->zero();
+  
+  std::shared_ptr<Args> args_par = std::make_shared<Args>(*args);
+  std::shared_ptr<Args> args_mono1 = std::make_shared<Args>(*args);
+  std::shared_ptr<Args> args_mono2 = std::make_shared<Args>(*args);
+  
+  args_par->togglePar();
+  args_mono1->toggleMono(1);
+  args_mono2->toggleMono(2);
+  
+  FastText ft_par{args_par, dict, input, output_word, 0};
+  FastText ft_mono1{args_mono1, dict, input, output_word, 0};
+  FastText ft_mono2{args_mono2, dict, input, output_word, 0};
+  
+  std::vector<FastText*> models = {&ft_par, &ft_mono1, &ft_mono2};
+  real progress(0);
+  lockTrain(models, progress);
+  
+  FastText ft_out{args_par, dict, input, output_word, 0};
+  ft_par.close("-no-thread");
+}
+
+
+void trainBilingualUnsupervisedMonoThread(int argc, char** argv) {
   std::cout << "--\nParsing arguments" << std::endl;
   std::shared_ptr<Args> args = std::make_shared<Args>();
   args->parseArgs(argc, argv);
@@ -404,6 +444,7 @@ void trainBilingualUnsupervisedMono(int argc, char** argv) {
   
   std::vector<std::thread> threads;
   for(int32_t threadId = 0; threadId < 5; threadId++) {
+    std::cout << "spawning thread : " << threadId << std::endl;
     threads.push_back(std::thread([=]() {
       FastText ft_par{args_par, dict, input, output_word, threadId};
       FastText ft_mono1{args_mono1, dict, input, output_word, threadId};
@@ -433,6 +474,8 @@ int main(int argc, char** argv) {
   std::string command(argv[1]);
   if (command == "bilingual-um") {
     trainBilingualUnsupervisedMono(argc, argv);
+  } else if (command == "bilingual-umt") {
+    trainBilingualUnsupervisedMonoThread(argc, argv);
   
   } else if (command == "test") {
     test(argc, argv);

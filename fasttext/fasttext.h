@@ -27,6 +27,7 @@ class FastText {
   private:
     clock_t start;
     std::vector<std::ifstream> ifs;
+    int32_t threadId_{0};
     
   public:
     FastText(std::shared_ptr<Args>, std::shared_ptr<Dictionary>, std::shared_ptr<Matrix>, std::shared_ptr<Matrix>, int32_t);
