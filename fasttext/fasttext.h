@@ -29,6 +29,8 @@ class FastText {
     std::vector<std::ifstream> ifs;
     
   public:
+    FastText(std::shared_ptr<Args>, std::shared_ptr<Dictionary>, std::shared_ptr<Matrix>, std::shared_ptr<Matrix>);
+    FastText(const std::string&);
     std::atomic<int64_t> tokenCount{0};
     real progress{0};
     std::shared_ptr<Args> args_;
@@ -51,7 +53,6 @@ class FastText {
     void skipgram(Model&, real, const std::vector<int32_t>&);
     void bilingual_skipgram(Model&, real, const std::vector<int32_t>&, const std::vector<int32_t>&);
     
-    void setup(std::shared_ptr<Args>, std::shared_ptr<Dictionary>, std::shared_ptr<Matrix>, std::shared_ptr<Matrix>);
     void close(std::string);
     void train();
     void step();
