@@ -342,8 +342,6 @@ void FastText::setup(std::shared_ptr<Args> args, std::shared_ptr<Dictionary> dic
   std::cout << "setup : " << args->name << std::endl;
   
   start = clock();
-  tokenCount = 0;
-  progress = 0;
   args_ = args;
   dict_ = dict;
   input_ = input;
@@ -366,9 +364,7 @@ void FastText::setup(std::shared_ptr<Args> args, std::shared_ptr<Dictionary> dic
 }
 
 void FastText::close(std::string suffix) {
-  for(int i = 0; i < ifs.size(); i++) {
-    ifs[i].close();
-  }
+  for(int i = 0; i < ifs.size(); i++) { ifs[i].close(); }
   model_ = std::make_shared<Model>(input_, output_, args_, 0);
   saveModel(suffix);
   saveVectors(suffix);
@@ -407,14 +403,15 @@ void trainBilingualUnsupervisedMono(int argc, char** argv) {
 
   std::shared_ptr<Args> args_par = std::make_shared<Args>(*args);
   args_par->togglePar();
-  ft_par.setup(args_par, dict, input, output_word);
   
   std::shared_ptr<Args> args_mono1 = std::make_shared<Args>(*args);
   args_mono1->toggleMono(1);
-  ft_mono1.setup(args_mono1, dict, input, output_word);
   
   std::shared_ptr<Args> args_mono2 = std::make_shared<Args>(*args);
   args_mono2->toggleMono(2);
+  
+  ft_par.setup(args_par, dict, input, output_word);
+  ft_mono1.setup(args_mono1, dict, input, output_word);
   ft_mono2.setup(args_mono2, dict, input, output_word);
   
   // Train
