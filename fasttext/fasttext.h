@@ -29,8 +29,8 @@ class FastText {
     std::vector<std::ifstream> ifs;
     
   public:
-    std::atomic<int64_t> tokenCount;
-    real progress;
+    std::atomic<int64_t> tokenCount{0};
+    real progress{0};
     std::shared_ptr<Args> args_;
     std::shared_ptr<Dictionary> dict_;
     std::shared_ptr<Matrix> input_;
@@ -43,15 +43,13 @@ class FastText {
     void saveModel(const std::string);
     void loadModel(const std::string&);
     void printInfo(real, real);
+    void test(const std::string&, int32_t);
+    void predict(const std::string&, int32_t, bool);
 
     void supervised(Model&, real, const std::vector<int32_t>&, const std::vector<int32_t>&);
     void cbow(Model&, real, const std::vector<int32_t>&);
     void skipgram(Model&, real, const std::vector<int32_t>&);
-    void bilingual_cbow(Model&, real, const std::vector<int32_t>&, const std::vector<int32_t>&);
     void bilingual_skipgram(Model&, real, const std::vector<int32_t>&, const std::vector<int32_t>&);
-    
-    void test(const std::string&, int32_t);
-    void predict(const std::string&, int32_t, bool);
     
     void setup(std::shared_ptr<Args>, std::shared_ptr<Dictionary>, std::shared_ptr<Matrix>, std::shared_ptr<Matrix>);
     void close(std::string);

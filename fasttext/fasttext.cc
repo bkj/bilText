@@ -26,13 +26,10 @@ void printUsage() {
   std::cout
   << "usage: fasttext <command> <args>\n\n"
   << "The commands supported by fasttext are:\n\n"
-  << "  semisupervised   train a semisupervised classifier (experimental)\n"
   << "  bilingual        train a bilingual classifier (experimental)\n"
   << "  test             evaluate a supervised classifier\n"
   << "  predict          predict most likely labels\n"
   << "  predict-prob     predict most likely labels with probabilities\n"
-  << "  skipgram         train a skipgram model\n"
-  << "  cbow             train a cbow model\n"
   << "  print-vectors    print vectors given a trained model\n"
   << std::endl;
 }
@@ -299,10 +296,8 @@ void FastText::skipgram(Model& model, real lr, const std::vector<int32_t>& line)
 }
 
 void FastText::bilingual_skipgram(Model& model, real lr, const std::vector<int32_t>& x, const std::vector<int32_t>& y) {
-//  real lr_x = lr * (args_->ws) / y.size();
-  real lr_x = lr;
+  real lr_x = lr * (args_->ws) / y.size();
   
-  // Forwards
   for (int32_t w = 0; w < x.size(); w++) {
     const std::vector<int32_t>& ngrams_x = dict_->getNgrams(x[w]);
     for (int32_t i = 0; i < y.size(); i++) {
@@ -330,9 +325,6 @@ void FastText::step() {
     skipgram(*model_, lr, line1);
   } else if (args_->model == model_name::bil) {
     tokenCount += dict_->getLine2(ifs[1], line2, labels, args_->model, u);
-
-//    skipgram(*model_, lr, line1);
-//    skipgram(*model_, lr, line2);
     bilingual_skipgram(*model_, lr, line1, line2);
     bilingual_skipgram(*model_, lr, line2, line1);
   }
@@ -351,6 +343,7 @@ void FastText::setup(std::shared_ptr<Args> args, std::shared_ptr<Dictionary> dic
   
   start = clock();
   tokenCount = 0;
+  progress = 0;
   args_ = args;
   dict_ = dict;
   input_ = input;
