@@ -335,9 +335,6 @@ void FastText::step() {
 
 FastText::FastText(std::shared_ptr<Args> args, std::shared_ptr<Dictionary> dict, std::shared_ptr<Matrix> input,
                      std::shared_ptr<Matrix> output, int32_t threadId) {
-  
-  std::cout << "setup : " << args->name << std::endl;
-  
   start = clock();
   args_ = args;
   dict_ = dict;
@@ -354,9 +351,8 @@ FastText::FastText(std::shared_ptr<Args> args, std::shared_ptr<Dictionary> dict,
   std::vector<std::string> possible_inputs = {args->input, args->input_mono1, args->input_mono2, args->input_par1, args->input_par2};
   for(auto possible_input : possible_inputs) {
     if(!possible_input.empty()) {
-      std::cout << "adding : " << possible_input << std::endl;
       ifs.push_back(std::ifstream(possible_input));
-      utils::seek(ifs.back(), threadId * utils::size(ifs.back()) / args_->thread);
+      utils::seek(ifs.back(), threadId * utils::size(ifs.back()) / 5);
     }
   }
 }
@@ -387,6 +383,7 @@ void trainBilingualUnsupervisedMono(int argc, char** argv) {
   std::cout << "--\nParsing arguments" << std::endl;
   std::shared_ptr<Args> args = std::make_shared<Args>();
   args->parseArgs(argc, argv);
+  args->epoch = 1;
   
   std::cout << "--\nCreating input matrix" << std::endl;
   std::shared_ptr<Dictionary> dict = std::make_shared<Dictionary>(args);
@@ -405,15 +402,24 @@ void trainBilingualUnsupervisedMono(int argc, char** argv) {
   args_mono1->toggleMono(1);
   args_mono2->toggleMono(2);
   
-  int32_t threadId = 0;
-  FastText ft_par{args_par, dict, input, output_word, threadId};
-  FastText ft_mono1{args_mono1, dict, input, output_word, threadId};
-  FastText ft_mono2{args_mono2, dict, input, output_word, threadId};
-
-  std::vector<FastText*> models = {&ft_par, &ft_mono1, &ft_mono2};
-  real progress(0);
-  lockTrain(models, progress);
-  ft_par.close("-thread");
+  std::vector<std::thread> threads;
+  for(int32_t threadId = 0; threadId < 5; threadId++) {
+    threads.push_back(std::thread([=]() {
+      FastText ft_par{args_par, dict, input, output_word, threadId};
+      FastText ft_mono1{args_mono1, dict, input, output_word, threadId};
+      FastText ft_mono2{args_mono2, dict, input, output_word, threadId};
+      
+      std::vector<FastText*> models = {&ft_par, &ft_mono1, &ft_mono2};
+      real progress(0);
+      lockTrain(models, progress);
+    }));
+  }
+  for (auto it = threads.begin(); it != threads.end(); ++it) {
+    it->join();
+  }
+  
+  FastText ft_out{args_par, dict, input, output_word, 0};
+  ft_out.close("-thread");
 }
 
 int main(int argc, char** argv) {
