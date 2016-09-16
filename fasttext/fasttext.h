@@ -29,7 +29,7 @@ class FastText {
     std::vector<std::ifstream> ifs;
     
   public:
-    FastText(std::shared_ptr<Args>, std::shared_ptr<Dictionary>, std::shared_ptr<Matrix>, std::shared_ptr<Matrix>);
+    FastText(std::shared_ptr<Args>, std::shared_ptr<Dictionary>, std::shared_ptr<Matrix>, std::shared_ptr<Matrix>, int32_t);
     FastText(const std::string&);
     std::atomic<int64_t> tokenCount{0};
     real progress{0};

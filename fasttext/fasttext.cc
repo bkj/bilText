@@ -334,7 +334,7 @@ void FastText::step() {
 }
 
 FastText::FastText(std::shared_ptr<Args> args, std::shared_ptr<Dictionary> dict, std::shared_ptr<Matrix> input,
-                     std::shared_ptr<Matrix> output) {
+                     std::shared_ptr<Matrix> output, int32_t threadId) {
   
   std::cout << "setup : " << args->name << std::endl;
   
@@ -356,6 +356,7 @@ FastText::FastText(std::shared_ptr<Args> args, std::shared_ptr<Dictionary> dict,
     if(!possible_input.empty()) {
       std::cout << "adding : " << possible_input << std::endl;
       ifs.push_back(std::ifstream(possible_input));
+      utils::seek(ifs.back(), threadId * utils::size(ifs.back()) / args_->thread);
     }
   }
 }
@@ -404,9 +405,10 @@ void trainBilingualUnsupervisedMono(int argc, char** argv) {
   args_mono1->toggleMono(1);
   args_mono2->toggleMono(2);
   
-  FastText ft_par{args_par, dict, input, output_word};
-  FastText ft_mono1{args_mono1, dict, input, output_word};
-  FastText ft_mono2{args_mono2, dict, input, output_word};
+  int32_t threadId = 0;
+  FastText ft_par{args_par, dict, input, output_word, threadId};
+  FastText ft_mono1{args_mono1, dict, input, output_word, threadId};
+  FastText ft_mono2{args_mono2, dict, input, output_word, threadId};
 
   std::vector<FastText*> models = {&ft_par, &ft_mono1, &ft_mono2};
   real progress(0);
