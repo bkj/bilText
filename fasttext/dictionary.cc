@@ -33,16 +33,10 @@ Dictionary::Dictionary(std::shared_ptr<Args> args) {
     word2int_[i] = -1;
   }
   
-  // Leads to reading data twice
 //  std::vector<std::string> possible_inputs = {args->input, args->input_mono1, args->input_mono2, args->input_par1, args->input_par2};
-  
   std::vector<std::string> possible_inputs = {args->input, args->input_mono1, args->input_mono2};
   
   readFromFile(possible_inputs);
-}
-
-void Dictionary::toggleWV(std::shared_ptr<Args> args) {
-  args_ = args;
 }
 
 int32_t Dictionary::find(const std::string& w) {
@@ -186,13 +180,13 @@ void Dictionary::readFromFile(std::vector<std::string>& possible_inputs) {
   for(auto possible_input : possible_inputs) {
     if(!possible_input.empty()) {
       any_input = true;
-      std::cout << "Reading data from " << possible_input << std::endl;
+      std::cerr << "Reading data from " << possible_input << std::endl;
       std::ifstream ifs(possible_input);
 
       while (readWord(ifs, word)) {
         add(word);
         if (ntokens_ % 1000000 == 0 && args_->verbose > 1) {
-          std::cout << "\rRead " << ntokens_  / 1000000 << "M words" << std::flush;
+          std::cerr << "\rRead " << ntokens_  / 1000000 << "M words" << std::flush;
         }
         if (size_ > 0.75 * MAX_VOCAB_SIZE) {
           threshold(minThreshold++);
@@ -200,17 +194,17 @@ void Dictionary::readFromFile(std::vector<std::string>& possible_inputs) {
       }
       
       ifs.close();
-      std::cout << std::endl;
+      std::cerr << std::endl;
     }
   }
 
   if (any_input) {
-    std::cout << "\rRead " << ntokens_  / 1000000 << "M words in total" << std::endl;
+    std::cerr << "\rRead " << ntokens_  << " words in total" << std::endl;
     threshold(args_->minCount);
     initTableDiscard();
     initNgrams();
-    std::cout << "Number of words:  " << nwords_ << std::endl;
-    std::cout << "Number of labels: " << nlabels_ << std::endl;
+    std::cerr << "Number of words:  " << nwords_ << std::endl;
+    std::cerr << "Number of labels: " << nlabels_ << std::endl;
     if (size_ == 0) {
       std::cerr << "Empty vocabulary. Try a smaller -minCount value." << std::endl;
       exit(EXIT_FAILURE);
@@ -301,7 +295,7 @@ int32_t Dictionary::getLine(std::istream& in, std::vector<int32_t>& words, std::
   return ntokens;
 }
 
-int32_t Dictionary::getLine2(std::istream& in, std::vector<int32_t>& words, std::vector<int32_t>& labels, model_name mname, real u) {
+int32_t Dictionary::getLine(std::istream& in, std::vector<int32_t>& words, std::vector<int32_t>& labels, model_name mname, real u) {
   std::string token;
   int32_t ntokens = 0;
   words.clear();

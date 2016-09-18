@@ -24,15 +24,16 @@ Args::Args() {
   model = model_name::sg;
   bucket = 2000000;
   
-  lrUpdateRate = 100;
   t = 1e-4;
   label = "__label__";
   verbose = 2;
 
   // Customized
+  lrUpdateRate = 100;
   thread = 1;
+  threadOffset = 0;
   
-  lr = 0.01;
+  lr = 0.05;
   lr_mono = 0.05;
   lr_par = 0.05;
   
@@ -42,21 +43,16 @@ Args::Args() {
   maxn = 0;
 }
 
-// Semisupervised
-//void Args::toggleWV() {
-//  model = model_name::cbow;
-//  loss = loss_name::ns;
-//  lr = lr_wv;
-//}
-
 // Bilingual
 void Args::toggleSup() {
   name = "sup_model";
   model = model_name::sup;
   loss = loss_name::softmax;
-  
-//  input_par1.clear();
-//  input_par2.clear();
+
+  input_mono1.clear();
+  input_mono2.clear();
+  input_par1.clear();
+  input_par2.clear();
 }
 
 void Args::toggleMono(int i) {
@@ -163,6 +159,8 @@ void Args::parseArgs(int argc, char** argv) {
       maxn = atoi(argv[ai + 1]);
     } else if (strcmp(argv[ai], "-thread") == 0) {
       thread = atoi(argv[ai + 1]);
+    } else if (strcmp(argv[ai], "-threadOffset") == 0) {
+      threadOffset = atoi(argv[ai + 1]);
     } else if (strcmp(argv[ai], "-t") == 0) {
       t = atof(argv[ai + 1]);
     } else if (strcmp(argv[ai], "-label") == 0) {
@@ -194,7 +192,6 @@ void Args::printHelp() {
     << "  -output       output file path\n\n"
     << "The following arguments are optional:\n"
     << "  -lr           learning rate [" << lr << "]\n"
-    << "  -lr_wv        learning rate (word vectors) [" << lr_wv << "]\n"
     << "  -lrUpdateRate change the rate of updates for the learning rate [" << lrUpdateRate << "]\n"
     << "  -dim          size of word vectors [" << dim << "]\n"
     << "  -ws           size of the context window [" << ws << "]\n"

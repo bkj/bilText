@@ -49,6 +49,7 @@ class Args {
     int minn;
     int maxn;
     int thread;
+    int32_t threadOffset;
     double t;
     std::string label;
     int verbose;
@@ -57,7 +58,6 @@ class Args {
     void printHelp();
     void save(std::ostream&);
     void load(std::istream&);
-    void toggleWV();
     
     void toggleSup();
     void toggleMono(const int);

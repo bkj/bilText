@@ -183,13 +183,15 @@ void FastText::printInfo(real progress, real loss) {
   int eta = int(t / progress * (1 - progress) / args_->thread);
   int etah = eta / 3600;
   int etam = (eta - etah * 3600) / 60;
-  std::cout << std::fixed;
-  std::cout << "\rProgress: " << std::setprecision(1) << 100 * progress << "%";
-  std::cout << "  words/sec/thread: " << std::setprecision(0) << wst;
-  std::cout << "  lr: " << std::setprecision(6) << lr;
-  std::cout << "  loss: " << std::setprecision(6) << loss;
-  std::cout << "  eta: " << etah << "h" << etam << "m ";
-  std::cout << std::flush;
+  std::cerr << std::fixed;
+  std::cerr << "\rProgress: " << std::setprecision(1) << 100 * progress << "%";
+  std::cerr << "  words/sec/thread: " << std::setprecision(0) << wst;
+  std::cerr << "  lr: " << std::setprecision(6) << lr;
+  std::cerr << "  loss: " << std::setprecision(6) << loss;
+  std::cerr << "  eta: " << etah << "h" << etam << "m ";
+  std::cerr << std::flush;
+  
+  std::cout << args_->name << "|" << progress << "|" << lr << "|" << loss << std::endl;
 }
 
 void FastText::test(const std::string& filename, int32_t k) {
@@ -335,7 +337,7 @@ FastText::FastText(std::shared_ptr<Args> args, std::shared_ptr<Dictionary> dict,
   for(auto possible_input : possible_inputs) {
     if(!possible_input.empty()) {
       ifs.push_back(std::ifstream(possible_input));
-      for (int i = 0; i < (threadId * 10000); ++i) {
+      for (int i = 0; i < (threadId * args_->threadOffset); ++i) {
         ifs.back().ignore(std::numeric_limits<std::streamsize>::max(), '\n');
       }
     }
@@ -345,27 +347,28 @@ FastText::FastText(std::shared_ptr<Args> args, std::shared_ptr<Dictionary> dict,
 void FastText::step() {
   std::vector<int32_t> line1, line2, labels;
   
-  progress = real(tokenCount) / (args_->epoch * dict_->ntokens());
+  step_counter_ += 1;
+  progress = real(tokenCount) / (args_->epoch * dict_->ntokens()); // This is the _total_ number of tokens.  Not just the number in the relevant dataset
   real lr = args_->lr * (1.0 - progress);
   
   std::uniform_real_distribution<> uniform(0, 1);
   real u = uniform(model_->rng);
-  tokenCount += dict_->getLine2(ifs[0], line1, labels, args_->model, u);
+  
+  tokenCount += dict_->getLine(ifs[0], line1, labels, args_->model, u);
   
   if (args_->model == model_name::sup) {
     dict_->addNgrams(line1, args_->wordNgrams);
     supervised(*model_, lr, line1, labels);
-  } else if (args_->model == model_name::cbow) {
-    cbow(*model_, lr, line1);
   } else if (args_->model == model_name::sg) {
     skipgram(*model_, lr, line1);
   } else if (args_->model == model_name::bil) {
-    tokenCount += dict_->getLine2(ifs[1], line2, labels, args_->model, u);
+    dict_->getLine(ifs[1], line2, labels, args_->model, u);
+    
     bilingual_skipgram(*model_, lr, line1, line2);
     bilingual_skipgram(*model_, lr, line2, line1);
   }
   
-  if ((tokenCount % args_->lrUpdateRate == 0) && (threadId_ == 0)) {
+  if ((step_counter_ % args_->lrUpdateRate == 0) && (threadId_ == 0)) {
     if (args_->verbose > 1) {
       printInfo(progress, model_->getLoss());
     }
@@ -387,12 +390,51 @@ void lockTrain(std::vector<FastText*> models, real progress) {
   }
 }
 
-void trainBilingualUnsupervisedMono(int argc, char** argv) {
-  std::cout << "--\nParsing arguments" << std::endl;
+void trainBilingualSupervised(int argc, char** argv) {
+  std::cerr << "--\nParsing arguments" << std::endl;
   std::shared_ptr<Args> args = std::make_shared<Args>();
   args->parseArgs(argc, argv);
   
-  std::cout << "--\nCreating input matrix" << std::endl;
+  std::cerr << "--\nCreating input matrix" << std::endl;
+  std::shared_ptr<Dictionary> dict = std::make_shared<Dictionary>(args);
+  std::shared_ptr<Matrix> input = std::make_shared<Matrix>(dict->nwords()+args->bucket, args->dim);
+  input->uniform(1.0 / args->dim);
+  
+  std::shared_ptr<Matrix> output_word, output_label;
+  output_word = std::make_shared<Matrix>(dict->nwords(), args->dim);
+  output_label = std::make_shared<Matrix>(dict->nlabels(), args->dim);
+  output_word->zero();
+  output_label->zero();
+  
+  std::shared_ptr<Args> args_sup = std::make_shared<Args>(*args);
+  std::shared_ptr<Args> args_par = std::make_shared<Args>(*args);
+  std::shared_ptr<Args> args_mono1 = std::make_shared<Args>(*args);
+  std::shared_ptr<Args> args_mono2 = std::make_shared<Args>(*args);
+  
+  args_sup->toggleSup();
+  args_par->togglePar();
+  args_mono1->toggleMono(1);
+  args_mono2->toggleMono(2);
+  
+  FastText ft_sup{args_sup, dict, input, output_label, 0};
+  FastText ft_par{args_par, dict, input, output_word, 0};
+  FastText ft_mono1{args_mono1, dict, input, output_word, 0};
+  FastText ft_mono2{args_mono2, dict, input, output_word, 0};
+  
+  std::vector<FastText*> models = {&ft_sup, &ft_par, &ft_mono1, &ft_mono2};
+  real progress(0);
+  lockTrain(models, progress);
+  
+  FastText ft_out{args_sup, dict, input, output_label, 0};
+  ft_out.close("-no-thread");
+}
+
+void trainBilingualUnsupervisedMono(int argc, char** argv) {
+  std::cerr << "--\nParsing arguments" << std::endl;
+  std::shared_ptr<Args> args = std::make_shared<Args>();
+  args->parseArgs(argc, argv);
+  
+  std::cerr << "--\nCreating input matrix" << std::endl;
   std::shared_ptr<Dictionary> dict = std::make_shared<Dictionary>(args);
   std::shared_ptr<Matrix> input = std::make_shared<Matrix>(dict->nwords()+args->bucket, args->dim);
   input->uniform(1.0 / args->dim);
@@ -423,12 +465,11 @@ void trainBilingualUnsupervisedMono(int argc, char** argv) {
 
 
 void trainBilingualUnsupervisedMonoThread(int argc, char** argv) {
-  std::cout << "--\nParsing arguments" << std::endl;
+  std::cerr << "--\nParsing arguments" << std::endl;
   std::shared_ptr<Args> args = std::make_shared<Args>();
   args->parseArgs(argc, argv);
-  args->epoch = 1;
   
-  std::cout << "--\nCreating input matrix" << std::endl;
+  std::cerr << "--\nCreating input matrix" << std::endl;
   std::shared_ptr<Dictionary> dict = std::make_shared<Dictionary>(args);
   std::shared_ptr<Matrix> input = std::make_shared<Matrix>(dict->nwords()+args->bucket, args->dim);
   input->uniform(1.0 / args->dim);
@@ -447,7 +488,7 @@ void trainBilingualUnsupervisedMonoThread(int argc, char** argv) {
   
   std::vector<std::thread> threads;
   for(int32_t threadId = 0; threadId < args->thread; threadId++) {
-    std::cout << "spawning thread : " << threadId << std::endl;
+    std::cerr << "spawning thread : " << threadId << std::endl;
     threads.push_back(std::thread([=]() {
       FastText ft_par{args_par, dict, input, output_word, threadId};
       FastText ft_mono1{args_mono1, dict, input, output_word, threadId};
@@ -467,8 +508,6 @@ void trainBilingualUnsupervisedMonoThread(int argc, char** argv) {
 }
 
 int main(int argc, char** argv) {
-//  srand(time(NULL));
-  
   utils::initTables();
   if (argc < 2) {
     printUsage();
@@ -479,6 +518,8 @@ int main(int argc, char** argv) {
     trainBilingualUnsupervisedMono(argc, argv);
   } else if (command == "bilingual-umt") {
     trainBilingualUnsupervisedMonoThread(argc, argv);
+  } else if (command == "bilingual-s") {
+    trainBilingualSupervised(argc, argv);
   
   } else if (command == "test") {
     test(argc, argv);
